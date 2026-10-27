@@ -27,8 +27,26 @@ public class ChildController {
     private final ObjectMapper objectMapper;
 
     private User resolveCurrentUser(HttpSession session) {
+        return resolveCurrentUser(session, null);
+    }
+
+    private User resolveCurrentUser(HttpSession session, HttpServletRequest request) {
         if (session != null && session.getAttribute("currentUser") instanceof User u && u.getId() != null) {
             return userRepository.findById(u.getId()).orElse(u);
+        }
+        if (request != null) {
+            String headerId = request.getHeader("X-User-Id");
+            if (headerId != null && !headerId.isBlank()) {
+                try {
+                    var u = userRepository.findById(Long.valueOf(headerId.trim()));
+                    if (u.isPresent()) return u.get();
+                } catch (Exception ignored) {}
+            }
+            String headerUser = request.getHeader("X-User-Username");
+            if (headerUser != null && !headerUser.isBlank()) {
+                var u = userRepository.findByUsername(headerUser.trim());
+                if (u.isPresent()) return u.get();
+            }
         }
         return userRepository.findAll().stream().findFirst().orElse(null);
     }
@@ -81,14 +99,14 @@ public class ChildController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Child>> listChildren(HttpSession session) {
-        User user = resolveCurrentUser(session);
+    public ResponseEntity<List<Child>> listChildren(HttpServletRequest request, HttpSession session) {
+        User user = resolveCurrentUser(session, request);
         return ResponseEntity.ok(childService.findAllForUser(user));
     }
 
     @PostMapping
     public ResponseEntity<Child> createChild(HttpServletRequest request, HttpSession session) {
-        User user = resolveCurrentUser(session);
+        User user = resolveCurrentUser(session, request);
         ChildDTO dto = parseInput(request, ChildDTO.class);
         if (dto != null) {
             if (dto.getGuardianId() == null && request.getParameter("guardianId") != null) {

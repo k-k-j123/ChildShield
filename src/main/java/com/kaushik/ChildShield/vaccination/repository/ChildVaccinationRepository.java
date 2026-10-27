@@ -17,4 +17,10 @@ public interface ChildVaccinationRepository extends JpaRepository<ChildVaccinati
 
     @Query("SELECT cv FROM ChildVaccination cv JOIN FETCH cv.child c JOIN FETCH cv.scheduleDose sd JOIN FETCH sd.vaccine v WHERE cv.child.id = :childId ORDER BY cv.dueDate ASC, cv.id ASC")
     List<ChildVaccination> findByChildIdWithDetails(@Param("childId") Long childId);
+
+    @Query("SELECT cv FROM ChildVaccination cv JOIN FETCH cv.child c JOIN FETCH cv.scheduleDose sd JOIN FETCH sd.vaccine v WHERE c.guardian.id = :guardianId ORDER BY cv.dueDate ASC, cv.id ASC")
+    List<ChildVaccination> findByGuardianIdWithDetails(@Param("guardianId") Long guardianId);
+
+    @Query("SELECT cv FROM ChildVaccination cv JOIN FETCH cv.child c JOIN FETCH cv.scheduleDose sd JOIN FETCH sd.vaccine v WHERE c.village IN :villages ORDER BY cv.dueDate ASC, cv.id ASC")
+    List<ChildVaccination> findByVillagesWithDetails(@Param("villages") List<com.kaushik.ChildShield.village.model.Village> villages);
 }

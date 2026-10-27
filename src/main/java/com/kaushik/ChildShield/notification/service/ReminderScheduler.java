@@ -22,52 +22,104 @@ public class ReminderScheduler {
     private final ChildVaccinationRepository childVaccinationRepository;
     private final NotificationRepository notificationRepository;
 
-    @Scheduled(cron = "0 0 6 * * *") // Run daily at 6 AM
+    @Scheduled(cron = "0 0 6 * * *") // Daily morning batch at 6 AM
+    @Scheduled(fixedDelay = 3600000, initialDelay = 10000) // 10s after startup and every hour
     @Transactional
     public void generateReminders() {
-        log.info("Running daily vaccination reminder generator...");
-        LocalDate today = LocalDate.now();
+        log.info("Running automatic vaccination reminder generator...");
+        int overdue = sendOverdueReminders();
+        int dueToday = sendDueTodayReminders();
+        log.info("Automatic reminder generator finished. Overdue sent: {}, Due today sent: {}", overdue, dueToday);
+    }
 
-        List<ChildVaccination> vaccinations = childVaccinationRepository.findAll();
+    @Transactional
+    public int sendOverdueReminders() {
+        LocalDate today = LocalDate.now();
+        List<ChildVaccination> vaccinations = childVaccinationRepository.findAllWithDetails();
+        int count = 0;
 
         for (ChildVaccination v : vaccinations) {
             if (v.getStatus() == ChildVaccination.Status.COMPLETED || v.getStatus() == ChildVaccination.Status.CANCELLED) {
                 continue;
             }
 
-            var guardian = v.getChild().getGuardian();
-            if (guardian.getUser() == null) {
+            var child = v.getChild();
+            if (child == null || child.getGuardian() == null) {
+                continue;
+            }
+            var guardian = child.getGuardian();
+            var recipient = guardian.getUser();
+            if (recipient == null) {
                 continue;
             }
 
-            var recipient = guardian.getUser();
             LocalDate due = v.getDueDate();
+            LocalDate dob = child.getDateOfBirth();
 
-            if (due.isEqual(today)) {
-                String reminderKey = "DUE_TODAY_" + v.getId();
+            // For newborn birth doses, grant a 14-day window before sending overdue alert
+            if (dob != null && due != null && due.isEqual(dob) && !dob.isBefore(today.minusDays(14))) {
+                continue;
+            }
+
+            if (due != null && due.isBefore(today)) {
+                String reminderKey = "OVERDUE_" + v.getId() + "_" + today;
                 if (!notificationRepository.existsByReminderKey(reminderKey)) {
-                    notificationRepository.save(Notification.builder()
-                            .recipientUser(recipient)
-                            .childVaccination(v)
-                            .notificationType(Notification.NotificationType.UPCOMING)
-                            .message("Vaccine dose '" + v.getScheduleDose().getDisplayName() + "' for your child " + v.getChild().getFullName() + " is due TODAY.")
-                            .scheduledFor(LocalDateTime.now())
-                            .reminderKey(reminderKey)
-                            .build());
-                }
-            } else if (due.isBefore(today)) {
-                String reminderKey = "OVERDUE_" + v.getId();
-                if (!notificationRepository.existsByReminderKey(reminderKey)) {
+                    String doseName = v.getScheduleDose() != null ? v.getScheduleDose().getDisplayName() : "Vaccine Dose";
+                    String childName = child.getFullName() != null ? child.getFullName() : "your child";
                     notificationRepository.save(Notification.builder()
                             .recipientUser(recipient)
                             .childVaccination(v)
                             .notificationType(Notification.NotificationType.OVERDUE)
-                            .message("Vaccine dose '" + v.getScheduleDose().getDisplayName() + "' for your child " + v.getChild().getFullName() + " is OVERDUE (due on " + due + ").")
+                            .message("Reminder: Vaccine dose '" + doseName + "' for " + childName + " is OVERDUE (due on " + due + "). Please visit the health center soon.")
                             .scheduledFor(LocalDateTime.now())
                             .reminderKey(reminderKey)
                             .build());
+                    count++;
                 }
             }
         }
+        return count;
+    }
+
+    @Transactional
+    public int sendDueTodayReminders() {
+        LocalDate today = LocalDate.now();
+        List<ChildVaccination> vaccinations = childVaccinationRepository.findAllWithDetails();
+        int count = 0;
+
+        for (ChildVaccination v : vaccinations) {
+            if (v.getStatus() == ChildVaccination.Status.COMPLETED || v.getStatus() == ChildVaccination.Status.CANCELLED) {
+                continue;
+            }
+
+            var child = v.getChild();
+            if (child == null || child.getGuardian() == null) {
+                continue;
+            }
+            var guardian = child.getGuardian();
+            var recipient = guardian.getUser();
+            if (recipient == null) {
+                continue;
+            }
+
+            LocalDate due = v.getDueDate();
+            if (due != null && due.isEqual(today)) {
+                String reminderKey = "DUE_TODAY_" + v.getId() + "_" + today;
+                if (!notificationRepository.existsByReminderKey(reminderKey)) {
+                    String doseName = v.getScheduleDose() != null ? v.getScheduleDose().getDisplayName() : "Vaccine Dose";
+                    String childName = child.getFullName() != null ? child.getFullName() : "your child";
+                    notificationRepository.save(Notification.builder()
+                            .recipientUser(recipient)
+                            .childVaccination(v)
+                            .notificationType(Notification.NotificationType.UPCOMING)
+                            .message("Alert: Vaccine dose '" + doseName + "' for " + childName + " is due TODAY (" + today + ").")
+                            .scheduledFor(LocalDateTime.now())
+                            .reminderKey(reminderKey)
+                            .build());
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 }

@@ -245,6 +245,7 @@ async function dashboardPage(user) {
             `
                 : `
               <a class="btn btn-primary" href="beneficiaries.html"><span>👥</span> Manage Beneficiaries</a>
+              <button class="btn btn-warning" id="btnDashSendOverdue"><span>🔔</span> Send Overdue Reminders to All Guardians</button>
               <a class="btn btn-secondary" href="maternal-visits.html"><span>🩺</span> Record Maternal Visit</a>
               <a class="btn btn-secondary" href="vaccinations.html"><span>💉</span> Update Vaccinations</a>
             `
@@ -268,18 +269,43 @@ async function dashboardPage(user) {
       </div>
       `
     );
+
+    $("#btnDashSendOverdue")?.addEventListener("click", async () => {
+      const btn = $("#btnDashSendOverdue");
+      btn.disabled = true;
+      btn.innerHTML = "<span>⏳</span> Dispatching reminders...";
+      try {
+        const res = await API.sendOverdueReminders();
+        toast(res.message || `Sent ${res.remindersSent || 0} overdue reminders!`, "success");
+      } catch (err) {
+        toast(err.message || "Failed to trigger reminders.", "error");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = "<span>🔔</span> Send Overdue Reminders to All Guardians";
+      }
+    });
   } else {
-    // Mother / Parent dashboard
-    let notifs = [];
-    try {
-      notifs = await API.notifications();
-    } catch {}
-    const unread = (notifs || []).filter((n) => !n.readAt).length;
+    // Mother / Parent dashboard - ONLY for this parent's own children
+    let [notifs, myChildren, myVax] = await Promise.all([
+      API.notifications().catch(() => []),
+      API.children().catch(() => []),
+      API.vaccinations().catch(() => [])
+    ]);
+
+    if (!Array.isArray(notifs)) notifs = [];
+    if (!Array.isArray(myChildren)) myChildren = [];
+    if (!Array.isArray(myVax)) myVax = [];
+
+    const unread = notifs.filter((n) => !n.readAt).length;
+    const completedDoses = myVax.filter((v) => computeStatus(v) === "COMPLETED").length;
+    const dueTodayDoses = myVax.filter((v) => computeStatus(v) === "DUE_TODAY").length;
+    const overdueDoses = myVax.filter((v) => computeStatus(v) === "OVERDUE").length;
 
     const stats = [
-      { label: "Total Vaccinations", value: d.totalDoses, hint: "Tracked in ChildShield", icon: "💉" },
-      { label: "Unread Reminders", value: unread, hint: "Important notices", icon: "🔔" },
-      { label: "My Account", value: "Verified Mother", hint: user.username, icon: "👩" }
+      { label: "My Children", value: myChildren.length, hint: myChildren.map((c) => c.fullName).join(", ") || "Enrolled in ChildShield", icon: "👶" },
+      { label: "Completed Vaccines", value: completedDoses, hint: `Total completed doses`, icon: "💉" },
+      { label: "Action Needed", value: dueTodayDoses + overdueDoses, hint: `${dueTodayDoses} due today, ${overdueDoses} overdue`, icon: "⚠️" },
+      { label: "Unread Reminders", value: unread, hint: "Important alerts", icon: "🔔" }
     ];
 
     shellPage(
@@ -290,25 +316,41 @@ async function dashboardPage(user) {
       <div class="grid grid-2" style="margin-top:20px">
         <div class="card">
           <div class="card-head">
-            <h2>Vaccination Schedule</h2>
+            <h2>My Children (${myChildren.length})</h2>
           </div>
-          <p class="muted" style="line-height:1.6">
-            View the complete immunization timeline for your child, including birth doses, OPV, Pentavalent, Rotavirus, and Measles-Rubella.
-          </p>
-          <div class="actions" style="margin-top:14px">
-            <a class="btn btn-primary" href="vaccinations.html"><span>💉</span> View Child Schedule</a>
-          </div>
+          ${
+            myChildren.length
+              ? `
+            <div style="display:flex; flex-direction:column; gap:12px; margin-top:10px;">
+              ${myChildren
+                .map(
+                  (c) => `
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+                  <div>
+                    <strong style="font-size:15px;">👶 ${escapeHtml(c.fullName)}</strong>
+                    <div class="muted" style="font-size:12.5px; margin-top:2px;">
+                      DOB: ${escapeHtml(c.dateOfBirth || "-")} ${c.gender ? `| ${escapeHtml(c.gender)}` : ""}
+                    </div>
+                  </div>
+                  <a class="btn btn-primary btn-small" href="vaccinations.html?childId=${c.id}">View Schedule</a>
+                </div>`
+                )
+                .join("")}
+            </div>`
+              : `<p class="muted">No children registered under your profile yet. Please coordinate with your assigned Health Worker (ASHA/ANM).</p>`
+          }
         </div>
 
         <div class="card">
           <div class="card-head">
-            <h2>Reminders & Alerts</h2>
+            <h2>Reminders & Alerts (${unread} unread)</h2>
           </div>
           <p class="muted" style="line-height:1.6">
             Receive automated notifications before scheduled dose dates and follow up on any missed visits.
           </p>
           <div class="actions" style="margin-top:14px">
-            <a class="btn btn-secondary" href="notifications.html"><span>🔔</span> View Reminders (${unread} new)</a>
+            <a class="btn btn-secondary" href="notifications.html"><span>🔔</span> View Reminders</a>
+            <a class="btn btn-outline" href="vaccinations.html"><span>💉</span> View Full Schedule</a>
           </div>
         </div>
       </div>
@@ -388,10 +430,13 @@ async function vaccinationsPage(user) {
     }
   });
 
-  const childrenOptions = Array.from(childrenMap.values())
+  const uniqueChildren = Array.from(childrenMap.values());
+  const effectiveInitialChildId = initialChildId || (isParent && uniqueChildren.length === 1 ? uniqueChildren[0].id : "");
+
+  const childrenOptions = uniqueChildren
     .map(
       (c) =>
-        `<option value="${c.id}" ${String(c.id) === String(initialChildId) ? "selected" : ""}>
+        `<option value="${c.id}" ${String(c.id) === String(effectiveInitialChildId) ? "selected" : ""}>
           ${escapeHtml(c.fullName || `Child #${c.id}`)} ${c.dateOfBirth ? `(DOB: ${escapeHtml(c.dateOfBirth)})` : ""}
         </option>`
     )
@@ -499,7 +544,7 @@ async function vaccinationsPage(user) {
   };
 
   const renderRows = () => {
-    const selectedChildId = $("#vaxChildFilter")?.value || "";
+    const selectedChildId = $("#vaxChildFilter")?.value !== undefined ? $("#vaxChildFilter").value : (effectiveInitialChildId || "");
     const query = ($("#vaxSearch")?.value || "").toLowerCase().trim();
     const statusFilter = $("#vaxStatusFilter")?.value || "";
 
@@ -1341,10 +1386,29 @@ async function notificationsPage(user) {
     if (!Array.isArray(notifs)) notifs = notifs?.notifications || [];
   } catch {}
 
+  const isWorkerOrAdmin = user.role === "HEALTH_WORKER" || user.role === "ADMIN";
+
   shellPage(
     "Notifications & Reminders",
     "Automated alerts for upcoming vaccination dates and overdue milestones.",
     `
+    ${
+      isWorkerOrAdmin
+        ? `
+      <div class="card" style="margin-bottom:20px; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:16px;">
+        <div style="flex:1; min-width:280px;">
+          <strong style="font-size:14px; display:block; margin-bottom:4px;">⏱️ Automated Reminders</strong>
+          <p class="muted" style="margin:0; font-size:13px; line-height:1.4;">
+            Reminders run automatically every morning at 6:00 AM and periodically every hour. You can also manually dispatch overdue reminders immediately to all registered mothers.
+          </p>
+        </div>
+        <button class="btn btn-warning" id="btnSendOverdue">
+          <span>🔔</span> Send Overdue Reminders to All Guardians
+        </button>
+      </div>`
+        : ""
+    }
+
     <div class="card">
       <div class="notifications-list" id="notifContainer">
         ${
@@ -1384,6 +1448,21 @@ async function notificationsPage(user) {
     </div>
   `
   );
+
+  $("#btnSendOverdue")?.addEventListener("click", async () => {
+    const btn = $("#btnSendOverdue");
+    btn.disabled = true;
+    btn.innerHTML = "<span>⏳</span> Dispatching reminders...";
+    try {
+      const res = await API.sendOverdueReminders();
+      toast(res.message || `Sent ${res.remindersSent || 0} overdue reminders!`, "success");
+      setTimeout(() => location.reload(), 1200);
+    } catch (err) {
+      toast(err.message || "Failed to dispatch reminders.", "error");
+      btn.disabled = false;
+      btn.innerHTML = "<span>🔔</span> Send Overdue Reminders to All Guardians";
+    }
+  });
 
   $$("[data-read-notif]").forEach((btn) => {
     btn.addEventListener("click", async () => {

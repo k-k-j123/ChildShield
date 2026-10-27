@@ -103,7 +103,8 @@ const API = {
 
   // Notifications
   notifications: () => api("/api/notifications"),
-  readNotification: (id) => api(`/api/notifications/${id}/read`, { method: "POST" })
+  readNotification: (id) => api(`/api/notifications/${id}/read`, { method: "POST" }),
+  sendOverdueReminders: () => api("/api/notifications/send-overdue-reminders", { method: "POST" })
 };
 
 // Make available globally

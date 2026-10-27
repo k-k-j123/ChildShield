@@ -245,7 +245,7 @@ async function dashboardPage(user) {
             `
                 : `
               <a class="btn btn-primary" href="beneficiaries.html"><span>👥</span> Manage Beneficiaries</a>
-              <button class="btn btn-warning" id="btnDashSendOverdue"><span>🔔</span> Send Overdue Reminders to All Guardians</button>
+              <button class="btn btn-warning" id="btnDashSendOverdue"><span>📱</span> Send Overdue Reminders &amp; WhatsApp</button>
               <a class="btn btn-secondary" href="maternal-visits.html"><span>🩺</span> Record Maternal Visit</a>
               <a class="btn btn-secondary" href="vaccinations.html"><span>💉</span> Update Vaccinations</a>
             `
@@ -539,8 +539,36 @@ async function vaccinationsPage(user) {
         <div style="background:#10b981; height:100%; width:${pct}%; transition:width 0.3s ease;"></div>
       </div>
       <small class="muted" style="display:block; margin-top:4px;">Immunization Progress: ${completed} of ${total} doses administered (${pct}%)</small>
+      ${
+        !isParent
+          ? `
+        <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center; border-top:1px solid #e2e8f0; padding-top:8px;">
+          <small class="muted">Send notification digest to parent via WhatsApp & In-App</small>
+          <button class="btn btn-warning btn-small" id="btnNotifyChild" style="display:inline-flex; align-items:center; gap:6px;">
+            <span>📱</span> Notify Parent (WhatsApp &amp; In-App)
+          </button>
+        </div>`
+          : ""
+      }
     `;
     card.style.display = "block";
+
+    const btnNotify = $("#btnNotifyChild");
+    if (btnNotify) {
+      btnNotify.onclick = async () => {
+        btnNotify.disabled = true;
+        btnNotify.innerHTML = "<span>⏳</span> Sending alert...";
+        try {
+          const res = await API.sendRemindersForChild(childId);
+          toast(res.message || "Notification dispatched to parent!", res.success ? "success" : "info");
+        } catch (err) {
+          toast("Failed to send notification: " + (err.message || err), "error");
+        } finally {
+          btnNotify.disabled = false;
+          btnNotify.innerHTML = "<span>📱</span> Notify Parent (WhatsApp &amp; In-App)";
+        }
+      };
+    }
   };
 
   const renderRows = () => {
@@ -758,8 +786,15 @@ async function beneficiariesPage(user) {
                       <td>${escapeHtml(c.dateOfBirth || "-")}</td>
                       <td>${escapeHtml(c.gender || "-")}</td>
                       <td>${escapeHtml(c.guardian?.fullName || c.guardianName || `Guardian #${c.guardianId || "-"}`)}</td>
-                      <td>
+                      <td style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
                         <a href="vaccinations.html?childId=${c.id}" class="btn btn-outline btn-small"><span>💉</span> View Status</a>
+                        ${
+                          isHealthWorker || user.role === "ADMIN"
+                            ? `<button class="btn btn-warning btn-small btn-notify-child" data-child-id="${c.id}" data-child-name="${escapeHtml(c.fullName)}">
+                                <span>🔔</span> Notify Parent
+                              </button>`
+                            : ""
+                        }
                       </td>
                     </tr>`
                       )
@@ -943,6 +978,26 @@ async function beneficiariesPage(user) {
       gSelect?.addEventListener("change", updateVillageField);
     });
   }
+
+  // Hook up Notify Parent buttons in the children table
+  $$(".btn-notify-child").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const cId = btn.getAttribute("data-child-id");
+      const cName = btn.getAttribute("data-child-name") || "Child";
+      btn.disabled = true;
+      btn.innerHTML = "<span>⏳</span> Sending...";
+      try {
+        const res = await API.sendRemindersForChild(cId);
+        toast(res.message || `Notification dispatched for ${cName}!`, res.success ? "success" : "info");
+      } catch (err) {
+        toast("Failed to dispatch notification: " + (err.message || err), "error");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = "<span>🔔</span> Notify Parent";
+      }
+    });
+  });
 }
 
 // -------------------------------------------------------------
@@ -1381,12 +1436,21 @@ async function reportsPage(user) {
 // -------------------------------------------------------------
 async function notificationsPage(user) {
   let notifs = [];
+  let childrenList = [];
   try {
-    notifs = await API.notifications();
-    if (!Array.isArray(notifs)) notifs = notifs?.notifications || [];
+    const [fetchedNotifs, fetchedChildren] = await Promise.all([
+      API.notifications().catch(() => []),
+      API.children().catch(() => [])
+    ]);
+    notifs = Array.isArray(fetchedNotifs) ? fetchedNotifs : (fetchedNotifs?.notifications || []);
+    childrenList = Array.isArray(fetchedChildren) ? fetchedChildren : [];
   } catch {}
 
   const isWorkerOrAdmin = user.role === "HEALTH_WORKER" || user.role === "ADMIN";
+
+  const childrenOptions = childrenList
+    .map((c) => `<option value="${c.id}">${escapeHtml(c.fullName)} (Guardian: ${escapeHtml(c.guardian?.fullName || c.guardianName || "-")})</option>`)
+    .join("");
 
   shellPage(
     "Notifications & Reminders",
@@ -1395,16 +1459,32 @@ async function notificationsPage(user) {
     ${
       isWorkerOrAdmin
         ? `
-      <div class="card" style="margin-bottom:20px; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:16px;">
-        <div style="flex:1; min-width:280px;">
-          <strong style="font-size:14px; display:block; margin-bottom:4px;">⏱️ Automated Reminders</strong>
-          <p class="muted" style="margin:0; font-size:13px; line-height:1.4;">
-            Reminders run automatically every morning at 6:00 AM and periodically every hour. You can also manually dispatch overdue reminders immediately to all registered mothers.
-          </p>
+      <div class="card" style="margin-bottom:20px;">
+        <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:16px; margin-bottom:12px;">
+          <div style="flex:1; min-width:280px;">
+            <strong style="font-size:14px; display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+              <span>⏱️</span> Automated Reminders &amp; WhatsApp Alerts
+            </strong>
+            <p class="muted" style="margin:0; font-size:13px; line-height:1.4;">
+              Reminders run automatically every morning at 6:00 AM and periodically every hour. Dispatches in-app alerts and WhatsApp digest messages to registered guardians with overdue child vaccinations.
+            </p>
+          </div>
+          <button class="btn btn-warning" id="btnSendOverdue">
+            <span>📱</span> Send Overdue Reminders to All Guardians
+          </button>
         </div>
-        <button class="btn btn-warning" id="btnSendOverdue">
-          <span>🔔</span> Send Overdue Reminders to All Guardians
-        </button>
+        <div style="border-top:1px solid #e2e8f0; padding-top:12px; display:flex; flex-wrap:wrap; align-items:center; gap:10px;">
+          <label style="font-size:13.5px; font-weight:600; display:flex; align-items:center; gap:6px;">
+            <span>👶</span> Notify Specific Child's Parent:
+          </label>
+          <select id="notifChildSelect" class="filter-select" style="min-width:260px; font-size:13.5px; padding:7px 10px;">
+            <option value="">-- Select Child to Send Reminder --</option>
+            ${childrenOptions}
+          </select>
+          <button class="btn btn-secondary btn-small" id="btnNotifySelectedChild" style="display:inline-flex; align-items:center; gap:6px;">
+            <span>🔔</span> Send Notification (WhatsApp &amp; In-App)
+          </button>
+        </div>
       </div>`
         : ""
     }
@@ -1461,6 +1541,26 @@ async function notificationsPage(user) {
       toast(err.message || "Failed to dispatch reminders.", "error");
       btn.disabled = false;
       btn.innerHTML = "<span>🔔</span> Send Overdue Reminders to All Guardians";
+    }
+  });
+
+  $("#btnNotifySelectedChild")?.addEventListener("click", async () => {
+    const childId = $("#notifChildSelect")?.value;
+    if (!childId) {
+      toast("Please select a child from the dropdown first.", "error");
+      return;
+    }
+    const btn = $("#btnNotifySelectedChild");
+    btn.disabled = true;
+    btn.innerHTML = "<span>⏳</span> Sending...";
+    try {
+      const res = await API.sendRemindersForChild(childId);
+      toast(res.message || "Notification sent to parent!", res.success ? "success" : "info");
+      setTimeout(() => location.reload(), 1200);
+    } catch (err) {
+      toast("Failed to send notification: " + (err.message || err), "error");
+      btn.disabled = false;
+      btn.innerHTML = "<span>🔔</span> Send Notification (WhatsApp &amp; In-App)";
     }
   });
 

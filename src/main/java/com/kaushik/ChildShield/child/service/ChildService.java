@@ -12,7 +12,9 @@ import com.kaushik.ChildShield.village.model.Village;
 import com.kaushik.ChildShield.village.repository.VillageRepository;
 import com.kaushik.ChildShield.vaccination.service.VaccinationScheduleService;
 import com.kaushik.ChildShield.vaccination.repository.ChildVaccinationRepository;
+import com.kaushik.ChildShield.notification.service.ReminderScheduler;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +23,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 @Transactional(readOnly = true)
 public class ChildService {
 
@@ -30,6 +33,7 @@ public class ChildService {
     private final VillageRepository villageRepository;
     private final GuardianService guardianService;
     private final VaccinationScheduleService vaccinationScheduleService;
+    private final ReminderScheduler reminderScheduler;
 
     public List<Child> findAllForUser(User currentUser) {
         if (currentUser.getRole() == User.Role.ADMIN) {
@@ -99,6 +103,13 @@ public class ChildService {
 
         // Generate planned vaccination schedule transactionally
         vaccinationScheduleService.generateScheduleForChild(savedChild);
+
+        // Immediately generate overdue/due reminders for this newly added child
+        try {
+            reminderScheduler.sendRemindersForChild(savedChild.getId());
+        } catch (Exception e) {
+            log.error("Failed to generate immediate reminders for child #{}: {}", savedChild.getId(), e.getMessage());
+        }
 
         return savedChild;
     }

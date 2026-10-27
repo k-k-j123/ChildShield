@@ -101,10 +101,13 @@ const API = {
   visits: () => api("/api/maternal-visits"),
   createVisit: (payload) => api("/api/maternal-visits", { method: "POST", body: payload }),
 
-  // Notifications
+  // Notifications & WhatsApp
   notifications: () => api("/api/notifications"),
   readNotification: (id) => api(`/api/notifications/${id}/read`, { method: "POST" }),
-  sendOverdueReminders: () => api("/api/notifications/send-overdue-reminders", { method: "POST" })
+  sendOverdueReminders: () => api("/api/notifications/send-overdue-reminders", { method: "POST" }),
+  sendRemindersForChild: (childId) => api(`/api/notifications/child/${childId}/send-reminders`, { method: "POST" }),
+  whatsAppStatus: () => api("/api/notifications/whatsapp/status"),
+  sendTestWhatsApp: (phone, message) => api("/api/notifications/whatsapp/test", { method: "POST", body: { phone, message } })
 };
 
 // Make available globally

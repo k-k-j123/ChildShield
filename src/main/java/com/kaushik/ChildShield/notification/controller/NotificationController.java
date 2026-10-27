@@ -4,6 +4,7 @@ import com.kaushik.ChildShield.notification.model.Notification;
 import com.kaushik.ChildShield.notification.repository.NotificationRepository;
 import com.kaushik.ChildShield.notification.service.NotificationService;
 import com.kaushik.ChildShield.notification.service.ReminderScheduler;
+import com.kaushik.ChildShield.notification.service.WhatsAppService;
 import com.kaushik.ChildShield.user.model.User;
 import com.kaushik.ChildShield.user.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,6 +26,7 @@ public class NotificationController {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final ReminderScheduler reminderScheduler;
+    private final WhatsAppService whatsAppService;
 
     private User resolveCurrentUser(HttpSession session, HttpServletRequest request) {
         if (session != null && session.getAttribute("currentUser") instanceof User u && u.getId() != null) {
@@ -66,13 +68,73 @@ public class NotificationController {
     @PostMapping({"/send-overdue-reminders", "/trigger-reminders"})
     public ResponseEntity<Map<String, Object>> sendOverdueReminders(HttpServletRequest request, HttpSession session) {
         User user = resolveCurrentUser(session, request);
-        int count = reminderScheduler.sendOverdueReminders();
+        Map<String, Integer> result = reminderScheduler.sendOverdueRemindersWithResult();
+        int inApp = result.getOrDefault("inAppCount", 0);
+        int whatsapp = result.getOrDefault("whatsappCount", 0);
+
+        String msg;
+        if (inApp > 0 || whatsapp > 0) {
+            msg = "Dispatched " + inApp + " in-app reminder(s) and " + whatsapp + " WhatsApp alert(s) to registered mothers/guardians.";
+        } else {
+            msg = "All vaccination records are up to date! No pending overdue reminders.";
+        }
+
         return ResponseEntity.ok(Map.of(
                 "success", true,
-                "remindersSent", count,
-                "message", count > 0
-                        ? "Successfully sent " + count + " overdue vaccination reminder(s) to registered mothers/guardians."
-                        : "All vaccination records are up to date! No pending overdue reminders."
+                "remindersSent", inApp,
+                "whatsappSent", whatsapp,
+                "message", msg
+        ));
+    }
+
+    @PostMapping("/child/{childId}/send-reminders")
+    public ResponseEntity<Map<String, Object>> sendRemindersForChild(
+            @PathVariable Long childId,
+            HttpServletRequest request,
+            HttpSession session) {
+        User user = resolveCurrentUser(session, request);
+        Map<String, Object> result = reminderScheduler.sendRemindersForChild(childId);
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/whatsapp/status")
+    public ResponseEntity<Map<String, Object>> getWhatsAppStatus() {
+        return ResponseEntity.ok(Map.of(
+                "enabled", whatsAppService.isEnabled(),
+                "configured", whatsAppService.isConfigured(),
+                "messageType", whatsAppService.getMessageType(),
+                "templateName", whatsAppService.getTemplateName()
+        ));
+    }
+
+    @PostMapping("/whatsapp/test")
+    public ResponseEntity<Map<String, Object>> sendTestWhatsApp(@RequestBody Map<String, String> body) {
+        String phone = body.get("phone");
+        if (phone == null || phone.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Phone number is required"));
+        }
+
+        String type = body.getOrDefault("type", whatsAppService.getMessageType());
+        boolean sent;
+        String tName = body.getOrDefault("template", whatsAppService.getTemplateName());
+
+        if ("text".equalsIgnoreCase(type)) {
+            String message = body.getOrDefault("message", "Hello from ChildShield! This is a test notification.");
+            sent = whatsAppService.sendTextMessage(phone, message);
+        } else {
+            String p1 = body.getOrDefault("param1", "Guardian / Parent");
+            String p2 = body.getOrDefault("param2", "BCG, OPV 0, HepB-1");
+            String p3 = body.getOrDefault("param3", "Health Center Visit Due");
+            sent = whatsAppService.sendTemplateMessage(phone, tName, whatsAppService.getTemplateLanguage(), List.of(p1, p2, p3));
+        }
+
+        return ResponseEntity.ok(Map.of(
+                "success", sent,
+                "type", type,
+                "templateUsed", "template".equalsIgnoreCase(type) ? tName : "none (text)",
+                "message", sent
+                        ? "Test WhatsApp notification dispatched successfully using " + ("template".equalsIgnoreCase(type) ? "template '" + tName + "'" : "text") + "!"
+                        : "Failed to send WhatsApp message. Please check logs and API configuration."
         ));
     }
 }

@@ -124,7 +124,7 @@ public class VaccinationScheduleService {
                     .child(child)
                     .scheduleDose(dose)
                     .dueDate(dueDate)
-                    .status(determineStatus(dueDate))
+                    .status(determineStatus(dueDate, dob))
                     .build();
 
             childVaccinationRepository.save(vaccination);
@@ -140,8 +140,21 @@ public class VaccinationScheduleService {
         };
     }
 
-    private ChildVaccination.Status determineStatus(LocalDate dueDate) {
+    private ChildVaccination.Status determineStatus(LocalDate dueDate, LocalDate dob) {
         LocalDate today = LocalDate.now();
+
+        if (dob != null) {
+            // For newborn birth doses (scheduled on date of birth):
+            // If child was born today or within the last 14 days, it is DUE_TODAY, not overdue
+            if (dueDate.isEqual(dob)) {
+                if (!dob.isBefore(today.minusDays(14))) {
+                    return ChildVaccination.Status.DUE_TODAY;
+                }
+            } else if (dueDate.isAfter(today) || (dob.isEqual(today) && dueDate.isAfter(dob))) {
+                return ChildVaccination.Status.UPCOMING;
+            }
+        }
+
         if (dueDate.isBefore(today)) {
             return ChildVaccination.Status.OVERDUE;
         } else if (dueDate.isEqual(today)) {

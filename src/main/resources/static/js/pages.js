@@ -320,21 +320,103 @@ async function dashboardPage(user) {
 // -------------------------------------------------------------
 // Vaccinations Page
 // -------------------------------------------------------------
-async function vaccinationsPage(user) {
-  let records = [];
-  try {
-    records = await API.vaccinations();
-    if (!Array.isArray(records)) records = records?.content || records?.vaccinations || [];
-  } catch (e) {
-    records = [];
+function computeStatus(r) {
+  const currentStatus = (r.status || "").toUpperCase();
+  if (currentStatus === "COMPLETED" || r.administeredDate) return "COMPLETED";
+  if (currentStatus === "CANCELLED") return "CANCELLED";
+  if (!r.dueDate) return currentStatus || "PENDING";
+
+  const today = new Date().toISOString().slice(0, 10);
+  const dob = r.childDob || r.child?.dateOfBirth;
+
+  // If child was born today or in the future
+  if (dob && dob >= today) {
+    if (r.dueDate === dob || r.dueDate === today) {
+      return "DUE_TODAY";
+    }
+    if (r.dueDate > dob || r.dueDate > today) {
+      return "UPCOMING";
+    }
   }
 
+  if (r.dueDate === today) {
+    return "DUE_TODAY";
+  }
+
+  if (r.dueDate > today) {
+    return "UPCOMING";
+  }
+
+  // Grace period for birth doses: allow 14 days before marking overdue
+  if (dob && r.dueDate === dob) {
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10);
+    if (dob >= fourteenDaysAgo) {
+      return "DUE_TODAY";
+    }
+  }
+
+  return "OVERDUE";
+}
+
+async function vaccinationsPage(user) {
+  let [records, childrenList] = await Promise.all([
+    API.vaccinations().catch(() => []),
+    API.children().catch(() => [])
+  ]);
+
+  if (!Array.isArray(records)) records = records?.content || records?.vaccinations || [];
+  if (!Array.isArray(childrenList)) childrenList = [];
+
   const isParent = user.role === "PARENT";
+  const urlParams = new URLSearchParams(location.search);
+  const initialChildId = urlParams.get("childId") || "";
+
+  // Build unique children list
+  const childrenMap = new Map();
+  childrenList.forEach((c) => {
+    if (c && c.id) childrenMap.set(String(c.id), c);
+  });
+  records.forEach((r) => {
+    const cId = String(r.child?.id || r.childId || "");
+    if (cId && !childrenMap.has(cId)) {
+      childrenMap.set(cId, {
+        id: cId,
+        fullName: r.childName || r.child?.fullName || `Child #${cId}`,
+        dateOfBirth: r.childDob || r.child?.dateOfBirth,
+        guardian: r.child?.guardian
+      });
+    }
+  });
+
+  const childrenOptions = Array.from(childrenMap.values())
+    .map(
+      (c) =>
+        `<option value="${c.id}" ${String(c.id) === String(initialChildId) ? "selected" : ""}>
+          ${escapeHtml(c.fullName || `Child #${c.id}`)} ${c.dateOfBirth ? `(DOB: ${escapeHtml(c.dateOfBirth)})` : ""}
+        </option>`
+    )
+    .join("");
 
   shellPage(
     "Vaccination Schedule & Tracking",
     "Monitor planned vaccine doses, check due dates, and record administrations.",
     `
+    <div class="card" style="margin-bottom:20px;">
+      <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-end; gap:16px;">
+        <div style="flex:1; min-width:280px;">
+          <label style="font-weight:600; font-size:13.5px; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+            <span>👶</span> Select Child to View Vaccination Status
+          </label>
+          <select class="filter-select" id="vaxChildFilter" style="width:100%; font-size:14px; padding:10px 12px; font-weight:500;">
+            <option value="">-- All Children (Select to view individual status) --</option>
+            ${childrenOptions}
+          </select>
+        </div>
+        <div id="childSummaryCard" style="display:none; flex:2; min-width:320px; background:#f8fafc; padding:12px 18px; border-radius:8px; border:1px solid #e2e8f0;">
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="toolbar">
         <div class="toolbar-search">
@@ -374,14 +456,64 @@ async function vaccinationsPage(user) {
   `
   );
 
+  const updateChildSummary = (childId) => {
+    const card = $("#childSummaryCard");
+    if (!card) return;
+
+    if (!childId) {
+      card.style.display = "none";
+      return;
+    }
+
+    const c = childrenMap.get(String(childId));
+    const childRecords = records.filter((r) => String(r.child?.id || r.childId) === String(childId));
+    const total = childRecords.length;
+    const completed = childRecords.filter((r) => computeStatus(r) === "COMPLETED").length;
+    const dueToday = childRecords.filter((r) => computeStatus(r) === "DUE_TODAY").length;
+    const overdue = childRecords.filter((r) => computeStatus(r) === "OVERDUE").length;
+    const upcoming = childRecords.filter((r) => computeStatus(r) === "UPCOMING").length;
+    const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+    const guardianName = c?.guardian?.fullName || c?.guardianName || "";
+
+    card.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <div>
+          <strong style="font-size:15px;">👶 ${escapeHtml(c?.fullName || `Child #${childId}`)}</strong>
+          <span class="muted" style="font-size:12.5px; margin-left:8px;">DOB: ${escapeHtml(c?.dateOfBirth || "-")} ${c?.gender ? `| ${escapeHtml(c.gender)}` : ""}</span>
+        </div>
+        ${guardianName ? `<span class="muted" style="font-size:12.5px;">Guardian: <strong>${escapeHtml(guardianName)}</strong></span>` : ""}
+      </div>
+      <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">
+        <span class="badge badge-green">${completed} Completed</span>
+        ${dueToday > 0 ? `<span class="badge badge-amber">${dueToday} Due Today</span>` : ""}
+        ${overdue > 0 ? `<span class="badge badge-red">${overdue} Overdue</span>` : ""}
+        <span class="badge badge-blue">${upcoming} Upcoming</span>
+      </div>
+      <div style="width:100%; background:#e2e8f0; border-radius:4px; height:8px; overflow:hidden;">
+        <div style="background:#10b981; height:100%; width:${pct}%; transition:width 0.3s ease;"></div>
+      </div>
+      <small class="muted" style="display:block; margin-top:4px;">Immunization Progress: ${completed} of ${total} doses administered (${pct}%)</small>
+    `;
+    card.style.display = "block";
+  };
+
   const renderRows = () => {
+    const selectedChildId = $("#vaxChildFilter")?.value || "";
     const query = ($("#vaxSearch")?.value || "").toLowerCase().trim();
     const statusFilter = $("#vaxStatusFilter")?.value || "";
 
+    updateChildSummary(selectedChildId);
+
     const filtered = records.filter((r) => {
-      const childName = (r.childName || safeVal(r, "childName", "childFullName") || r.child?.fullName || `Child #${r.child?.id || r.childId || ""}`).toLowerCase();
+      const cId = String(r.child?.id || r.childId || "");
+      if (selectedChildId && cId !== selectedChildId) {
+        return false;
+      }
+
+      const childName = (r.childName || safeVal(r, "childName", "childFullName") || r.child?.fullName || `Child #${cId}`).toLowerCase();
       const vaccineName = (r.vaccineName || safeVal(r, "vaccineName", "displayName", "doseName") || r.scheduleDose?.displayName || r.scheduleDose?.doseCode || "").toLowerCase();
-      const status = (r.status || "").toUpperCase();
+      const status = computeStatus(r);
 
       const matchesQuery = !query || childName.includes(query) || vaccineName.includes(query) || String(r.dueDate || "").includes(query);
       const matchesStatus = !statusFilter || status === statusFilter;
@@ -399,7 +531,8 @@ async function vaccinationsPage(user) {
       .map((r) => {
         const childName = r.childName || safeVal(r, "childName", "childFullName") || r.child?.fullName || `Child #${r.child?.id || r.childId || ""}`;
         const vaccine = r.vaccineName || safeVal(r, "vaccineName", "displayName", "doseName") || r.scheduleDose?.displayName || r.scheduleDose?.doseCode || "Vaccine Dose";
-        const isCompleted = r.status === "COMPLETED";
+        const computed = computeStatus(r);
+        const isCompleted = computed === "COMPLETED";
 
         return `
         <tr>
@@ -407,7 +540,7 @@ async function vaccinationsPage(user) {
           <td><strong>${escapeHtml(childName)}</strong></td>
           <td>${escapeHtml(vaccine)}</td>
           <td>${escapeHtml(r.dueDate || "-")}</td>
-          <td>${statusBadge(r.status)}</td>
+          <td>${statusBadge(computed)}</td>
           <td>${escapeHtml(r.administeredDate || "-")}</td>
           <td class="text-truncate" title="${escapeHtml(r.notes || "")}">${escapeHtml(r.notes || "-")}</td>
           ${
@@ -429,6 +562,7 @@ async function vaccinationsPage(user) {
   };
 
   renderRows();
+  $("#vaxChildFilter")?.addEventListener("change", renderRows);
   $("#vaxSearch")?.addEventListener("input", renderRows);
   $("#vaxStatusFilter")?.addEventListener("change", renderRows);
 
@@ -564,6 +698,7 @@ async function beneficiariesPage(user) {
                 <th>Date of Birth</th>
                 <th>Gender</th>
                 <th>Guardian</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -578,10 +713,13 @@ async function beneficiariesPage(user) {
                       <td>${escapeHtml(c.dateOfBirth || "-")}</td>
                       <td>${escapeHtml(c.gender || "-")}</td>
                       <td>${escapeHtml(c.guardian?.fullName || c.guardianName || `Guardian #${c.guardianId || "-"}`)}</td>
+                      <td>
+                        <a href="vaccinations.html?childId=${c.id}" class="btn btn-outline btn-small"><span>💉</span> View Status</a>
+                      </td>
                     </tr>`
                       )
                       .join("")
-                  : `<tr><td colspan="5" class="empty">No children registered yet.</td></tr>`
+                  : `<tr><td colspan="6" class="empty">No children registered yet.</td></tr>`
               }
             </tbody>
           </table>

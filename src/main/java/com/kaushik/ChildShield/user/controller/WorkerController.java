@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
-@RequestMapping("/workers")
+@RequestMapping({"/workers", "/healthcare-workers", "/healthcare-workers.html"})
 @RequiredArgsConstructor
 public class WorkerController {
 
@@ -23,7 +23,7 @@ public class WorkerController {
         model.addAttribute("workers", userService.findByRole(User.Role.HEALTH_WORKER));
         model.addAttribute("userDTO", UserDTO.builder().role(User.Role.HEALTH_WORKER).build());
         model.addAttribute("villages", villageService.findAllActive());
-        return "workers/list";
+        return "healthcare-workers";
     }
 
     @PostMapping
@@ -32,7 +32,7 @@ public class WorkerController {
         userDTO.setRole(User.Role.HEALTH_WORKER);
         userService.create(userDTO);
         redirectAttributes.addFlashAttribute("successMessage", "Health worker created successfully.");
-        return "redirect:/workers";
+        return "redirect:/healthcare-workers";
     }
 
     @GetMapping("/{id}/edit")
@@ -49,7 +49,7 @@ public class WorkerController {
         model.addAttribute("userDTO", dto);
         model.addAttribute("worker", worker);
         model.addAttribute("villages", villageService.findAllActive());
-        return "workers/edit";
+        return "healthcare-workers";
     }
 
     @PostMapping("/{id}/edit")
@@ -59,13 +59,13 @@ public class WorkerController {
         userDTO.setRole(User.Role.HEALTH_WORKER);
         userService.update(id, userDTO);
         redirectAttributes.addFlashAttribute("successMessage", "Health worker updated successfully.");
-        return "redirect:/workers";
+        return "redirect:/healthcare-workers";
     }
 
     @PostMapping("/{id}/delete")
     public String deleteWorker(@PathVariable Long id, RedirectAttributes redirectAttributes) {
         userService.delete(id);
         redirectAttributes.addFlashAttribute("successMessage", "Health worker deactivated successfully.");
-        return "redirect:/workers";
+        return "redirect:/healthcare-workers";
     }
 }

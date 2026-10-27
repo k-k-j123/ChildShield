@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
-@RequestMapping("/guardians")
+@RequestMapping({"/guardians", "/beneficiaries", "/beneficiaries.html"})
 @RequiredArgsConstructor
 public class GuardianController {
 
@@ -36,7 +36,7 @@ public class GuardianController {
         model.addAttribute("villages", villageService.findAllActive());
         model.addAttribute("users", userRepository.findByRole(User.Role.PARENT));
         model.addAttribute("currentUser", user);
-        return "guardians/list";
+        return "beneficiaries";
     }
 
     @PostMapping
@@ -46,7 +46,7 @@ public class GuardianController {
         User user = resolveUser(userDetails);
         guardianService.create(guardianDTO, user);
         redirectAttributes.addFlashAttribute("successMessage", "Guardian registered successfully.");
-        return "redirect:/guardians";
+        return "redirect:/beneficiaries";
     }
 
     @GetMapping("/{id}/edit")
@@ -66,7 +66,7 @@ public class GuardianController {
         model.addAttribute("guardian", guardian);
         model.addAttribute("villages", villageService.findAllActive());
         model.addAttribute("users", userRepository.findByRole(User.Role.PARENT));
-        return "guardians/edit";
+        return "beneficiaries";
     }
 
     @PostMapping("/{id}/edit")
@@ -77,7 +77,7 @@ public class GuardianController {
         User user = resolveUser(userDetails);
         guardianService.update(id, guardianDTO, user);
         redirectAttributes.addFlashAttribute("successMessage", "Guardian updated successfully.");
-        return "redirect:/guardians";
+        return "redirect:/beneficiaries";
     }
 
     @PostMapping("/{id}/delete")
@@ -87,6 +87,6 @@ public class GuardianController {
         User user = resolveUser(userDetails);
         guardianService.delete(id, user);
         redirectAttributes.addFlashAttribute("successMessage", "Guardian deleted successfully.");
-        return "redirect:/guardians";
+        return "redirect:/beneficiaries";
     }
 }

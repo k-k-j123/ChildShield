@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CareTrack | Community Health</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: {
+      colors: { care: { 50:'#f1f8f4',100:'#e5f2eb',200:'#c8e5d5',500:'#218467',600:'#147d64',700:'#0f6652',900:'#172b27' } },
+      fontFamily: { sans:['DM Sans','sans-serif'], display:['Manrope','sans-serif'] },
+      boxShadow: { soft:'0 8px 28px rgba(25,58,48,.045)' }
+    }}};
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    [hidden]{display:none!important}
+    body{font-family:'DM Sans',sans-serif}
+    .nav-link.active{background:#e5f2eb;color:#147d64;font-weight:700}
+    .status{display:inline-flex;align-items:center;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700}
+    .status-Overdue{background:#fdecea;color:#b94f48}.status-Due{background:#fff2dc;color:#a56b1d}
+    .status-Upcoming{background:#eef0ff;color:#625ab0}.status-Completed{background:#e5f4ea;color:#287752}
+    .toast{background:#193b30;color:white;border-radius:10px;padding:12px 16px;box-shadow:0 12px 35px #102c2233;font-size:13px;max-width:340px}
+    .toast.error{background:#963e38}
+    table{width:100%;border-collapse:collapse;white-space:nowrap}
+    th{background:#fafcfb;color:#8a9790;font-size:10px;letter-spacing:.06em;text-align:left;padding:13px 16px;border-bottom:1px solid #edf1ee}
+    td{padding:13px 16px;border-bottom:1px solid #f0f3f1;font-size:12px;color:#596a61}
+    tr:last-child td{border-bottom:0}
+  </style>
+</head>
+<body class="min-h-screen bg-[#f7f9f8] text-care-900">
+<div class="min-h-screen">
+  <aside id="sidebar" class="fixed inset-y-0 left-0 z-30 flex w-64 -translate-x-full flex-col border-r border-slate-200 bg-white px-4 py-6 transition-transform md:translate-x-0">
+    <a href="health-worker-dashboard.html" class="mb-8 flex items-center gap-3 px-2">
+      <span class="grid h-10 w-10 place-items-center rounded-xl bg-care-600 text-2xl font-bold text-white">+</span>
+      <span><strong class="block font-display text-lg">CareTrack</strong><small class="text-xs text-slate-500">Community Health</small></span>
+    </a>
+    <p class="mb-3 px-3 text-[10px] font-bold tracking-[.15em] text-slate-400">WORKSPACE</p>
+    <nav class="grid gap-1"><a class="nav-link  flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-600 hover:bg-slate-50" href="health-worker-dashboard.html"><span class="w-5 text-center">▦</span>Dashboard</a><a class="nav-link active flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-600 hover:bg-slate-50" href="beneficiaries.html"><span class="w-5 text-center">♧</span>Beneficiaries</a><a class="nav-link  flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-600 hover:bg-slate-50" href="vaccination-schedule.html"><span class="w-5 text-center">▣</span>Vaccination schedule</a><a class="nav-link  flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-600 hover:bg-slate-50" href="visit-records.html"><span class="w-5 text-center">＋</span>Visit records</a><a class="nav-link  flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-600 hover:bg-slate-50" href="notifications.html"><span class="w-5 text-center">♧</span>Notifications</a><a class="nav-link  flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-600 hover:bg-slate-50" href="reports.html"><span class="w-5 text-center">▤</span>Reports</a><a class="nav-link  flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-600 hover:bg-slate-50" href="profile.html"><span class="w-5 text-center">○</span>My profile</a></nav>
+    <div class="mt-auto rounded-xl bg-care-50 p-4">
+      <p class="font-semibold text-sm">Every visit matters</p><p class="mt-1 text-xs leading-5 text-slate-500">Helping every mother and child stay on track.</p>
+      <div class="mt-4 border-t border-care-200 pt-3 text-xs text-slate-500" id="sidebarIdentity">Demo account</div>
+      <button id="logoutButton" class="mt-3 text-xs font-bold text-care-700 hover:underline">Sign out ↗</button>
+    </div>
+  </aside>
+  <main class="min-h-screen md:ml-64">
+    <header class="sticky top-0 z-20 flex h-[68px] items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-8">
+      <div class="flex items-center gap-3"><button id="mobileMenu" class="text-xl md:hidden" aria-label="Toggle menu">☰</button><span class="text-xs text-slate-400">Workspace /</span><strong class="text-sm">Beneficiaries</strong></div>
+      <div class="flex items-center gap-3"><a href="notifications.html" class="relative rounded-lg border border-slate-200 px-3 py-2 text-sm" aria-label="Notifications">♧</a><div class="grid h-9 w-9 place-items-center rounded-full bg-[#f0e5d7] text-xs font-bold text-[#79583f]" id="headerAvatar">AS</div></div>
+    </header>
+    <div class="mx-auto max-w-[1500px] px-4 py-7 sm:px-8">
+      <div class="mb-7"><p class="mb-2 text-[10px] font-bold tracking-[.15em] text-slate-400">CARETRACK WORKSPACE</p><h1 class="font-display text-2xl font-extrabold tracking-tight sm:text-3xl">Beneficiaries</h1><p class="mt-2 text-sm text-slate-500">Manage mother and child records for your assigned communities.</p></div>
+      
+<div class="mb-5 flex flex-wrap items-center justify-between gap-3"><p class="text-sm text-slate-500">Search, filter and register fictional mother/child records.</p><button id="openBeneficiaryModal" class="rounded-xl bg-care-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-care-700">＋ Register beneficiary</button></div>
+<section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-soft"><div class="flex flex-wrap gap-3 border-b border-slate-100 p-4"><input id="beneficiarySearch" type="search" placeholder="Search name, village or phone…" class="min-w-[220px] flex-1 rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-care-500"><select id="villageFilter" class="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="all">All villages</option></select></div><div class="overflow-x-auto"><table><thead><tr><th>MOTHER / GUARDIAN</th><th>VILLAGE</th><th>CONTACT</th><th>CHILDREN</th><th>REGISTERED</th></tr></thead><tbody id="beneficiaryRows"></tbody></table></div><div class="border-t border-slate-100 px-4 py-3 text-xs text-slate-400" id="beneficiaryResultCount"></div></section>
+<div id="beneficiaryModal" hidden class="fixed inset-0 z-40 grid place-items-center overflow-y-auto bg-slate-900/50 p-4"><section class="my-auto w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl"><div class="mb-5 flex items-start justify-between"><div><h2 class="font-display text-xl font-extrabold">Register mother and children</h2><p class="mt-1 text-xs text-slate-500">Register one mother/guardian and one or more children in a single form.</p></div><button id="closeBeneficiaryModal" class="text-2xl text-slate-400" aria-label="Close">×</button></div><form id="beneficiaryForm" class="grid gap-4 sm:grid-cols-2"><div class="sm:col-span-2 border-b border-slate-100 pb-2"><h3 class="font-bold text-care-700">Mother / Guardian details</h3></div><label class="text-sm font-semibold">Full name *<input name="motherName" required maxlength="120" placeholder="e.g. Meera Patil" class="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal"></label><label class="text-sm font-semibold">Phone *<input name="phone" required inputmode="tel" maxlength="20" pattern="[0-9+ ()-]{7,20}" placeholder="Enter contact number" class="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal"></label><label class="text-sm font-semibold sm:col-span-2">Village *<select name="village" required class="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal"><option value="Rampur">Rampur</option><option value="Shivapur">Shivapur</option><option value="Devgaon">Devgaon</option><option value="Other">Other</option></select></label><div class="sm:col-span-2 mt-2 flex items-center justify-between border-b border-slate-100 pb-2"><div><h3 class="font-bold text-care-700">Child details</h3><p class="mt-1 text-xs text-slate-500">Add every child linked to this mother.</p></div><button type="button" id="addChildFormRow" class="rounded-lg border border-care-200 px-3 py-2 text-xs font-bold text-care-700 hover:bg-care-50">＋ Add another child</button></div><div id="childFormRows" class="grid gap-3 sm:col-span-2"><div class="child-form-row grid gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-2"><label class="text-sm font-semibold">Child full name *<input name="childName[]" required maxlength="120" placeholder="e.g. Aarav Patil" class="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal"></label><label class="text-sm font-semibold">Date of birth *<input name="childDob[]" required type="date"  class="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal"></label><label class="text-sm font-semibold">Gender<select name="childGender[]" class="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal"><option value="">Prefer not to say</option><option>Female</option><option>Male</option><option>Other</option></select></label><label class="text-sm font-semibold">Birth weight (kg, optional)<input name="birthWeight[]" type="number" min="0.5" max="10" step="0.01" placeholder="e.g. 3.20" class="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal"></label></div></div><div class="flex justify-end gap-2 sm:col-span-2"><button type="button" id="cancelBeneficiaryModal" class="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold">Cancel</button><button class="rounded-xl bg-care-600 px-4 py-2.5 text-sm font-bold text-white">Save mother and children</button></div></form></section></div>
+
+    </div>
+    <footer class="border-t border-slate-200 px-4 py-4 text-xs text-slate-400 sm:px-8">CareTrack · Hackathon prototype · Use fictional data only</footer>
+  </main>
+</div>
+<div id="toastRegion" class="fixed bottom-5 right-5 z-50 grid gap-2" aria-live="polite"></div>
+<script src="api-contract.js"></script><script src="app.js"></script>
+</body></html>

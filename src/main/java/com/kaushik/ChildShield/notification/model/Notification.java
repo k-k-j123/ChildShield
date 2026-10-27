@@ -1,5 +1,6 @@
 package com.kaushik.ChildShield.notification.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.kaushik.ChildShield.user.model.User;
 import com.kaushik.ChildShield.vaccination.model.ChildVaccination;
 import jakarta.persistence.*;
@@ -17,6 +18,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Notification {
 
     @Id
@@ -25,10 +27,12 @@ public class Notification {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "recipient_user_id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "assignedVillages"})
     private User recipientUser;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "child_vaccination_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private ChildVaccination childVaccination;
 
     @Enumerated(EnumType.STRING)

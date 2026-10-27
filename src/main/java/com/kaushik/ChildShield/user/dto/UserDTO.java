@@ -24,3 +24,4 @@ public class UserDTO {
     @Builder.Default
     private Set<Long> villageIds = new HashSet<>();
 }
+

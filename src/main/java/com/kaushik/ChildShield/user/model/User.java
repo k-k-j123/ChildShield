@@ -1,5 +1,7 @@
 package com.kaushik.ChildShield.user.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.kaushik.ChildShield.village.model.Village;
 import jakarta.persistence.*;
 import lombok.*;
@@ -17,6 +19,7 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class User {
 
     @Id
@@ -29,6 +32,7 @@ public class User {
     @Column(nullable = false, unique = true, length = 80)
     private String username;
 
+    @JsonIgnore
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
@@ -40,13 +44,14 @@ public class User {
     @Builder.Default
     private boolean enabled = true;
 
-    @ManyToMany(fetch = FetchType.LAZY)
+    @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "health_worker_villages",
             joinColumns = @JoinColumn(name = "health_worker_id"),
             inverseJoinColumns = @JoinColumn(name = "village_id")
     )
     @Builder.Default
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Set<Village> assignedVillages = new HashSet<>();
 
     @CreationTimestamp

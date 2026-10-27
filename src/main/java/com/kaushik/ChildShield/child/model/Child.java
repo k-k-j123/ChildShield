@@ -1,5 +1,6 @@
 package com.kaushik.ChildShield.child.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.kaushik.ChildShield.guardian.model.Guardian;
 import com.kaushik.ChildShield.user.model.User;
 import com.kaushik.ChildShield.village.model.Village;
@@ -19,6 +20,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Child {
 
     @Id
@@ -27,6 +29,7 @@ public class Child {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "guardian_id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Guardian guardian;
 
     @Column(name = "full_name", nullable = false, length = 120)
@@ -43,10 +46,12 @@ public class Child {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "village_id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Village village;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "assignedVillages"})
     private User createdBy;
 
     @CreationTimestamp

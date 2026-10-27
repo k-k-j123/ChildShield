@@ -1,5 +1,6 @@
 package com.kaushik.ChildShield.vaccination.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -12,6 +13,7 @@ import java.time.LocalDate;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class ScheduleVersion {
 
     @Id
@@ -36,7 +38,7 @@ public class ScheduleVersion {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default
-    private Status status = Status.ACTIVE;
+    private Status status = Status.DRAFT;
 
     public enum Status {
         DRAFT,

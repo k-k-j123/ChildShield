@@ -1,78 +1,72 @@
 package com.kaushik.ChildShield.vaccination.controller;
 
 import com.kaushik.ChildShield.common.exception.ResourceNotFoundException;
-import com.kaushik.ChildShield.guardian.service.GuardianService;
 import com.kaushik.ChildShield.user.model.User;
 import com.kaushik.ChildShield.user.repository.UserRepository;
 import com.kaushik.ChildShield.vaccination.model.ChildVaccination;
 import com.kaushik.ChildShield.vaccination.repository.ChildVaccinationRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.stereotype.Controller;
+import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 
-@Controller
-@RequestMapping("/vaccinations")
+@RestController
+@RequestMapping({"/api/vaccinations", "/vaccinations"})
 @RequiredArgsConstructor
+@CrossOrigin(origins = "*")
 public class VaccinationController {
 
     private final ChildVaccinationRepository childVaccinationRepository;
-    private final GuardianService guardianService;
     private final UserRepository userRepository;
 
-    private User resolveUser(UserDetails userDetails) {
-        return userRepository.findByUsername(userDetails.getUsername())
-                .orElseThrow(() -> new IllegalStateException("Current user not found"));
+    private User resolveDefaultUser() {
+        return userRepository.findAll().stream().findFirst().orElse(null);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<ChildVaccination>> listVaccinations() {
+        return ResponseEntity.ok(childVaccinationRepository.findAllWithDetails());
+    }
+
+    @GetMapping("/child/{childId}")
+    public ResponseEntity<List<ChildVaccination>> getVaccinationsForChild(@PathVariable Long childId) {
+        return ResponseEntity.ok(childVaccinationRepository.findByChildIdWithDetails(childId));
     }
 
     @PostMapping("/{id}/administer")
     @Transactional
-    public String administerDose(@PathVariable Long id,
-                                 @RequestParam(required = false) LocalDate administeredDate,
-                                 @RequestParam(required = false) String notes,
-                                 @AuthenticationPrincipal UserDetails userDetails,
-                                 RedirectAttributes redirectAttributes) {
-        User user = resolveUser(userDetails);
+    public ResponseEntity<ChildVaccination> administerDose(@PathVariable Long id,
+                                                          @RequestBody(required = false) Map<String, Object> body,
+                                                          @RequestParam(required = false) LocalDate administeredDate,
+                                                          @RequestParam(required = false) String notes) {
+        User user = resolveDefaultUser();
         ChildVaccination vaccination = childVaccinationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Vaccination record not found"));
 
-        guardianService.validateAccess(vaccination.getChild().getVillage(), user);
+        LocalDate dateToUse = administeredDate;
+        String notesToUse = notes;
+
+        if (body != null) {
+            if (body.get("administeredDate") != null) {
+                try {
+                    dateToUse = LocalDate.parse(body.get("administeredDate").toString());
+                } catch (Exception ignored) {
+                }
+            }
+            if (body.get("notes") != null) {
+                notesToUse = body.get("notes").toString();
+            }
+        }
 
         vaccination.setStatus(ChildVaccination.Status.COMPLETED);
-        vaccination.setAdministeredDate(administeredDate != null ? administeredDate : LocalDate.now());
+        vaccination.setAdministeredDate(dateToUse != null ? dateToUse : LocalDate.now());
         vaccination.setRecordedBy(user);
-        vaccination.setNotes(notes);
+        vaccination.setNotes(notesToUse);
 
-        childVaccinationRepository.save(vaccination);
-
-        redirectAttributes.addFlashAttribute("successMessage", "Vaccination dose marked as administered successfully.");
-        return "redirect:/children/" + vaccination.getChild().getId();
-    }
-
-    @PostMapping("/{id}/cancel")
-    @Transactional
-    public String cancelDose(@PathVariable Long id,
-                             @RequestParam(required = false) String notes,
-                             @AuthenticationPrincipal UserDetails userDetails,
-                             RedirectAttributes redirectAttributes) {
-        User user = resolveUser(userDetails);
-        ChildVaccination vaccination = childVaccinationRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Vaccination record not found"));
-
-        guardianService.validateAccess(vaccination.getChild().getVillage(), user);
-
-        vaccination.setStatus(ChildVaccination.Status.CANCELLED);
-        vaccination.setRecordedBy(user);
-        vaccination.setNotes(notes);
-
-        childVaccinationRepository.save(vaccination);
-
-        redirectAttributes.addFlashAttribute("successMessage", "Vaccination dose cancelled.");
-        return "redirect:/children/" + vaccination.getChild().getId();
+        return ResponseEntity.ok(childVaccinationRepository.save(vaccination));
     }
 }

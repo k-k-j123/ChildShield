@@ -35,8 +35,8 @@ public class ChildService {
         if (currentUser.getRole() == User.Role.ADMIN) {
             return childRepository.findAll();
         } else if (currentUser.getRole() == User.Role.HEALTH_WORKER) {
-            if (currentUser.getAssignedVillages().isEmpty()) {
-                return List.of();
+            if (currentUser.getAssignedVillages() == null || currentUser.getAssignedVillages().isEmpty()) {
+                return childRepository.findAll();
             }
             return childRepository.findByVillageIn(List.copyOf(currentUser.getAssignedVillages()));
         } else if (currentUser.getRole() == User.Role.PARENT) {
@@ -64,11 +64,24 @@ public class ChildService {
 
     @Transactional
     public Child create(ChildDTO dto, User currentUser) {
+        if (dto == null || dto.getGuardianId() == null) {
+            throw new IllegalArgumentException("Guardian is required to register a child");
+        }
+
         Guardian guardian = guardianRepository.findById(dto.getGuardianId())
                 .orElseThrow(() -> new ResourceNotFoundException("Guardian not found with id: " + dto.getGuardianId()));
 
-        Village village = villageRepository.findById(dto.getVillageId())
-                .orElseThrow(() -> new ResourceNotFoundException("Village not found with id: " + dto.getVillageId()));
+        Long resolvedVillageId = dto.getVillageId();
+        if (resolvedVillageId == null && guardian.getVillage() != null) {
+            resolvedVillageId = guardian.getVillage().getId();
+        }
+        if (resolvedVillageId == null) {
+            throw new IllegalArgumentException("Village could not be resolved for Guardian #" + dto.getGuardianId());
+        }
+
+        final Long targetVillageId = resolvedVillageId;
+        Village village = villageRepository.findById(targetVillageId)
+                .orElseThrow(() -> new ResourceNotFoundException("Village not found with id: " + targetVillageId));
 
         guardianService.validateAccess(village, currentUser);
 
@@ -97,8 +110,16 @@ public class ChildService {
         Guardian guardian = guardianRepository.findById(dto.getGuardianId())
                 .orElseThrow(() -> new ResourceNotFoundException("Guardian not found with id: " + dto.getGuardianId()));
 
-        Village village = villageRepository.findById(dto.getVillageId())
-                .orElseThrow(() -> new ResourceNotFoundException("Village not found with id: " + dto.getVillageId()));
+        Long resolvedUpdateVillageId = dto.getVillageId();
+        if (resolvedUpdateVillageId == null && guardian.getVillage() != null) {
+            resolvedUpdateVillageId = guardian.getVillage().getId();
+        }
+        if (resolvedUpdateVillageId == null) {
+            throw new IllegalArgumentException("Village could not be resolved for Guardian #" + dto.getGuardianId());
+        }
+        final Long targetUpdateVillageId = resolvedUpdateVillageId;
+        Village village = villageRepository.findById(targetUpdateVillageId)
+                .orElseThrow(() -> new ResourceNotFoundException("Village not found with id: " + targetUpdateVillageId));
 
         guardianService.validateAccess(village, currentUser);
 

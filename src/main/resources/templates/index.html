@@ -1,63 +1,47 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CareTrack | Community Health</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = { theme: { extend: {
-      colors: { care: { 50:'#f1f8f4',100:'#e5f2eb',200:'#c8e5d5',500:'#218467',600:'#147d64',700:'#0f6652',900:'#172b27' } },
-      fontFamily: { sans:['DM Sans','sans-serif'], display:['Manrope','sans-serif'] },
-      boxShadow: { soft:'0 8px 28px rgba(25,58,48,.045)' }
-    }}};
-  </script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <style>
-    [hidden]{display:none!important}
-    body{font-family:'DM Sans',sans-serif}
-    .nav-link.active{background:#e5f2eb;color:#147d64;font-weight:700}
-    .status{display:inline-flex;align-items:center;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700}
-    .status-Overdue{background:#fdecea;color:#b94f48}.status-Due{background:#fff2dc;color:#a56b1d}
-    .status-Upcoming{background:#eef0ff;color:#625ab0}.status-Completed{background:#e5f4ea;color:#287752}
-    .toast{background:#193b30;color:white;border-radius:10px;padding:12px 16px;box-shadow:0 12px 35px #102c2233;font-size:13px;max-width:340px}
-    .toast.error{background:#963e38}
-    table{width:100%;border-collapse:collapse;white-space:nowrap}
-    th{background:#fafcfb;color:#8a9790;font-size:10px;letter-spacing:.06em;text-align:left;padding:13px 16px;border-bottom:1px solid #edf1ee}
-    td{padding:13px 16px;border-bottom:1px solid #f0f3f1;font-size:12px;color:#596a61}
-    tr:last-child td{border-bottom:0}
-  </style>
-</head>
-<body class="min-h-screen bg-[#f7f9f8] text-care-900">
-<main class="grid min-h-screen lg:grid-cols-2">
-  <section class="flex flex-col justify-between bg-care-900 px-7 py-8 text-white sm:px-12 lg:px-16 lg:py-12">
-    <a href="index.html" class="flex items-center gap-3"><span class="grid h-11 w-11 place-items-center rounded-xl bg-care-600 text-3xl font-bold">+</span><span><strong class="block font-display text-xl">CareTrack</strong><small class="text-sm text-white/60">Community Health</small></span></a>
-    <div class="my-12 max-w-lg">
-      <span class="inline-flex rounded-full border border-white/20 px-3 py-1.5 text-xs text-white/80">Rural Mother & Child Vaccination Tracker</span>
-      <h1 class="mt-6 font-display text-4xl font-extrabold leading-tight sm:text-5xl">Every child deserves a healthy start.</h1>
-      <p class="mt-5 max-w-md text-base leading-7 text-white/65">One simple place to track visits, keep vaccination records organised, and help community health workers follow up on time.</p>
-      <div class="mt-8 grid max-w-md grid-cols-2 gap-3">
-        <div class="rounded-2xl border border-white/10 bg-white/5 p-4"><div class="text-2xl">♡</div><strong class="mt-2 block text-sm">Mother & child care</strong><p class="mt-1 text-xs leading-5 text-white/55">Visit and dose records in one place.</p></div>
-        <div class="rounded-2xl border border-white/10 bg-white/5 p-4"><div class="text-2xl">⌁</div><strong class="mt-2 block text-sm">Timely reminders</strong><p class="mt-1 text-xs leading-5 text-white/55">Demo SMS and in-app notifications.</p></div>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ChildShield - Login</title>
+    <link rel="stylesheet" href="/css/styles.css" />
+  </head>
+  <body class="auth-page">
+    <div class="auth-card">
+      <div class="brand">
+        <div class="logo">CS</div>
+        <h1>ChildShield</h1>
+        <p>Rural Mother & Child Vaccination Tracker</p>
+      </div>
+
+      <div id="message"></div>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="username">Username or Email</label>
+          <input id="username" type="text" placeholder="e.g. admin or sunita" required autocomplete="username" />
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input id="password" type="password" placeholder="••••••••" required autocomplete="current-password" />
+        </div>
+
+        <button class="btn btn-primary full" id="loginBtn" type="submit">
+          Sign In
+        </button>
+      </form>
+
+      <div style="text-align: center; margin-top: 24px; font-size: 13.5px;" class="muted">
+        Don't have an account? <a class="link" href="register.html">Create an account</a>
       </div>
     </div>
-    <p class="text-xs text-white/40">Prototype only · Do not enter real patient information</p>
-  </section>
-  <section class="flex items-center justify-center px-5 py-12 sm:px-10">
-    <div class="w-full max-w-md">
-      <p class="text-sm font-semibold text-care-700">WELCOME BACK</p><h2 class="mt-3 font-display text-3xl font-extrabold">Sign in to CareTrack</h2><p class="mt-2 text-sm text-slate-500">Use a demo role to explore the prototype.</p>
-      <form id="loginForm" class="mt-8 space-y-5">
-        <label class="block text-sm font-semibold">Email address<input name="email" type="email" required placeholder="you@example.com" class="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-normal outline-none focus:border-care-500"></label>
-        <label class="block text-sm font-semibold">Password<input name="password" type="password" required minlength="4" placeholder="Enter any demo password" class="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-normal outline-none focus:border-care-500"></label>
-        <label class="block text-sm font-semibold">Demo role<select name="role" class="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-normal"><option value="user">Mother / Guardian</option><option value="worker" selected>Health worker</option><option value="admin">Administrator</option></select></label>
-        <button class="w-full rounded-xl bg-care-600 px-4 py-3.5 text-sm font-bold text-white hover:bg-care-700">Sign in <span class="ml-1">→</span></button>
-      </form>
-      <div class="mt-5 rounded-xl border border-care-200 bg-care-50 p-4 text-xs leading-5 text-slate-600"><strong class="text-care-700">Demo sign-in:</strong> enter any valid email and a password of at least 4 characters, then choose a role. This is not real authentication.</div>
-      <p class="mt-6 text-center text-sm text-slate-500">New to CareTrack? <a class="font-bold text-care-700 hover:underline" href="register.html">Create an account</a></p>
-    </div>
-  </section>
-</main>
-<div id="toastRegion" class="fixed bottom-5 right-5 z-50 grid gap-2"></div><script src="api-contract.js"></script><script src="app.js"></script>
-</body></html>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/app.js"></script>
+    <script src="/js/pages.js"></script>
+    <script>
+      window.addEventListener("DOMContentLoaded", () => renderPage("index.html"));
+    </script>
+  </body>
+</html>

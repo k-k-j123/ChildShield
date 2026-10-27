@@ -1,71 +1,133 @@
 package com.kaushik.ChildShield.user.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kaushik.ChildShield.user.dto.UserDTO;
 import com.kaushik.ChildShield.user.model.User;
 import com.kaushik.ChildShield.user.service.UserService;
-import com.kaushik.ChildShield.village.service.VillageService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-@Controller
-@RequestMapping({"/workers", "/healthcare-workers", "/healthcare-workers.html"})
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+@RestController
+@RequestMapping({"/api/admin/health-workers", "/healthcare-workers"})
 @RequiredArgsConstructor
+@CrossOrigin(origins = "*")
 public class WorkerController {
 
     private final UserService userService;
-    private final VillageService villageService;
+    private final ObjectMapper objectMapper;
+
+    private Map<String, Object> parseBody(HttpServletRequest request) {
+        try {
+            String contentType = request.getContentType();
+            if (contentType != null && contentType.contains("application/json")) {
+                StringBuilder sb = new StringBuilder();
+                String line;
+                try (var reader = request.getReader()) {
+                    while ((line = reader.readLine()) != null) {
+                        sb.append(line);
+                    }
+                }
+                if (sb.length() > 0) {
+                    return objectMapper.readValue(sb.toString(), Map.class);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return Map.of();
+    }
 
     @GetMapping
-    public String listWorkers(Model model) {
-        model.addAttribute("workers", userService.findByRole(User.Role.HEALTH_WORKER));
-        model.addAttribute("userDTO", UserDTO.builder().role(User.Role.HEALTH_WORKER).build());
-        model.addAttribute("villages", villageService.findAllActive());
-        return "healthcare-workers";
+    public ResponseEntity<List<User>> listWorkers() {
+        return ResponseEntity.ok(userService.findByRole(User.Role.HEALTH_WORKER));
     }
 
     @PostMapping
-    public String createWorker(@ModelAttribute("userDTO") UserDTO userDTO,
-                               RedirectAttributes redirectAttributes) {
-        userDTO.setRole(User.Role.HEALTH_WORKER);
-        userService.create(userDTO);
-        redirectAttributes.addFlashAttribute("successMessage", "Health worker created successfully.");
-        return "redirect:/healthcare-workers";
-    }
+    public ResponseEntity<User> createWorker(HttpServletRequest request) {
+        Map<String, Object> body = parseBody(request);
+        String fullName = (String) body.getOrDefault("fullName", request.getParameter("fullName"));
+        String username = (String) body.getOrDefault("username", request.getParameter("username"));
+        String password = (String) body.getOrDefault("password", request.getParameter("password"));
 
-    @GetMapping("/{id}/edit")
-    public String editWorkerForm(@PathVariable Long id, Model model) {
-        User worker = userService.findById(id);
+        Set<Long> villageIds = new HashSet<>();
+        Object vIdsObj = body.get("villageIds");
+        if (vIdsObj instanceof List<?> list) {
+            for (Object item : list) {
+                if (item instanceof Number n) {
+                    villageIds.add(n.longValue());
+                } else if (item != null) {
+                    try {
+                        villageIds.add(Long.valueOf(item.toString()));
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        } else if (request.getParameterValues("villageIds") != null) {
+            for (String s : request.getParameterValues("villageIds")) {
+                try {
+                    villageIds.add(Long.valueOf(s));
+                } catch (Exception ignored) {
+                }
+            }
+        }
+
         UserDTO dto = UserDTO.builder()
-                .id(worker.getId())
-                .fullName(worker.getFullName())
-                .username(worker.getUsername())
-                .role(worker.getRole())
-                .enabled(worker.isEnabled())
-                .villageIds(worker.getAssignedVillages().stream().map(v -> v.getId()).collect(java.util.stream.Collectors.toSet()))
+                .fullName(fullName)
+                .username(username)
+                .password(password)
+                .role(User.Role.HEALTH_WORKER)
+                .enabled(true)
+                .villageIds(villageIds)
                 .build();
-        model.addAttribute("userDTO", dto);
-        model.addAttribute("worker", worker);
-        model.addAttribute("villages", villageService.findAllActive());
-        return "healthcare-workers";
+
+        return ResponseEntity.ok(userService.create(dto));
     }
 
-    @PostMapping("/{id}/edit")
-    public String updateWorker(@PathVariable Long id,
-                               @ModelAttribute("userDTO") UserDTO userDTO,
-                               RedirectAttributes redirectAttributes) {
-        userDTO.setRole(User.Role.HEALTH_WORKER);
-        userService.update(id, userDTO);
-        redirectAttributes.addFlashAttribute("successMessage", "Health worker updated successfully.");
-        return "redirect:/healthcare-workers";
+    @GetMapping("/{id}")
+    public ResponseEntity<User> getWorker(@PathVariable Long id) {
+        return ResponseEntity.ok(userService.findById(id));
     }
 
-    @PostMapping("/{id}/delete")
-    public String deleteWorker(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+    @PutMapping("/{id}")
+    public ResponseEntity<User> updateWorker(@PathVariable Long id, HttpServletRequest request) {
+        Map<String, Object> body = parseBody(request);
+        String fullName = (String) body.getOrDefault("fullName", request.getParameter("fullName"));
+        String username = (String) body.getOrDefault("username", request.getParameter("username"));
+        String password = (String) body.getOrDefault("password", request.getParameter("password"));
+
+        Set<Long> villageIds = new HashSet<>();
+        Object vIdsObj = body.get("villageIds");
+        if (vIdsObj instanceof List<?> list) {
+            for (Object item : list) {
+                if (item instanceof Number n) {
+                    villageIds.add(n.longValue());
+                }
+            }
+        }
+
+        UserDTO dto = UserDTO.builder()
+                .id(id)
+                .fullName(fullName)
+                .username(username)
+                .password(password)
+                .role(User.Role.HEALTH_WORKER)
+                .enabled(true)
+                .villageIds(villageIds)
+                .build();
+
+        return ResponseEntity.ok(userService.update(id, dto));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteWorker(@PathVariable Long id) {
         userService.delete(id);
-        redirectAttributes.addFlashAttribute("successMessage", "Health worker deactivated successfully.");
-        return "redirect:/healthcare-workers";
+        return ResponseEntity.noContent().build();
     }
 }
+

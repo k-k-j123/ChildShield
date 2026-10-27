@@ -15,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -68,6 +70,10 @@ public class VaccinationScheduleService {
     }
 
     private void createVaccineAndDose(ScheduleVersion version, String code, String name, String desc, int ageVal, ScheduleDose.AgeUnit unit, int seq) {
+        if (scheduleDoseRepository.findByScheduleVersionIdAndDoseCode(version.getId(), code).isPresent()) {
+            return;
+        }
+
         Vaccine vaccine = vaccineRepository.findByCode(code).orElseGet(() ->
             vaccineRepository.save(Vaccine.builder().code(code).name(name).description(desc).active(true).build())
         );
@@ -86,14 +92,32 @@ public class VaccinationScheduleService {
 
     @Transactional
     public void generateScheduleForChild(Child child) {
+        if (child == null || child.getId() == null) {
+            return;
+        }
+
         ScheduleVersion activeVersion = scheduleVersionRepository.findByStatus(ScheduleVersion.Status.ACTIVE)
-                .orElseThrow(() -> new IllegalStateException("No active vaccination schedule found"));
+                .orElseGet(() -> {
+                    seedSchedule();
+                    return scheduleVersionRepository.findByStatus(ScheduleVersion.Status.ACTIVE)
+                            .orElseThrow(() -> new IllegalStateException("No active vaccination schedule found"));
+                });
 
         List<ScheduleDose> doses = scheduleDoseRepository.findByScheduleVersionIdAndActiveTrueOrderBySequenceNumberAsc(activeVersion.getId());
 
-        LocalDate dob = child.getDateOfBirth();
+        LocalDate dob = child.getDateOfBirth() != null ? child.getDateOfBirth() : LocalDate.now();
+
+        // Avoid duplicate vaccination entries for this child
+        List<ChildVaccination> existing = childVaccinationRepository.findByChildId(child.getId());
+        Set<Long> existingDoseIds = existing.stream()
+                .map(v -> v.getScheduleDose().getId())
+                .collect(Collectors.toSet());
 
         for (ScheduleDose dose : doses) {
+            if (existingDoseIds.contains(dose.getId())) {
+                continue;
+            }
+
             LocalDate dueDate = calculateDueDate(dob, dose.getAgeValue(), dose.getAgeUnit());
 
             ChildVaccination vaccination = ChildVaccination.builder()

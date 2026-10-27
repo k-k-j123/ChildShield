@@ -1,5 +1,6 @@
 package com.kaushik.ChildShield.maternalvisit.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.kaushik.ChildShield.guardian.model.Guardian;
 import com.kaushik.ChildShield.user.model.User;
 import jakarta.persistence.*;
@@ -17,6 +18,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class MaternalVisit {
 
     @Id
@@ -25,6 +27,7 @@ public class MaternalVisit {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "guardian_id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Guardian guardian;
 
     @Column(name = "visit_date", nullable = false)
@@ -39,8 +42,9 @@ public class MaternalVisit {
     @Column(name = "next_visit_date")
     private LocalDate nextVisitDate;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "recorded_by", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "recorded_by")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "assignedVillages"})
     private User recordedBy;
 
     @CreationTimestamp

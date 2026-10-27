@@ -75,7 +75,7 @@ public class UserService implements UserDetailsService {
                 .fullName(dto.getFullName())
                 .username(dto.getUsername())
                 .passwordHash(passwordEncoder.encode(dto.getPassword()))
-                .role(dto.getRole())
+                .role(dto.getRole() != null ? dto.getRole() : User.Role.PARENT)
                 .enabled(dto.isEnabled())
                 .assignedVillages(villages)
                 .build();
@@ -87,13 +87,19 @@ public class UserService implements UserDetailsService {
     public User update(Long id, UserDTO dto) {
         User user = findById(id);
 
-        if (!user.getUsername().equals(dto.getUsername()) && userRepository.existsByUsername(dto.getUsername())) {
+        if (dto.getUsername() != null && !user.getUsername().equals(dto.getUsername()) && userRepository.existsByUsername(dto.getUsername())) {
             throw new IllegalArgumentException("Username already exists");
         }
 
-        user.setFullName(dto.getFullName());
-        user.setUsername(dto.getUsername());
-        user.setRole(dto.getRole());
+        if (dto.getFullName() != null) {
+            user.setFullName(dto.getFullName());
+        }
+        if (dto.getUsername() != null) {
+            user.setUsername(dto.getUsername());
+        }
+        if (dto.getRole() != null) {
+            user.setRole(dto.getRole());
+        }
         user.setEnabled(dto.isEnabled());
 
         if (dto.getPassword() != null && !dto.getPassword().isBlank()) {
@@ -115,3 +121,4 @@ public class UserService implements UserDetailsService {
         userRepository.save(user);
     }
 }
+

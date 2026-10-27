@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Service
@@ -24,22 +25,28 @@ public class MaternalVisitService {
     private final GuardianService guardianService;
 
     public List<MaternalVisit> findByGuardian(Long guardianId, User currentUser) {
+        if (guardianId == null) {
+            throw new IllegalArgumentException("Guardian ID cannot be null");
+        }
         Guardian guardian = guardianRepository.findById(guardianId)
-                .orElseThrow(() -> new ResourceNotFoundException("Guardian not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Guardian not found with id: " + guardianId));
         guardianService.validateAccess(guardian.getVillage(), currentUser);
         return maternalVisitRepository.findByGuardianId(guardianId);
     }
 
     @Transactional
     public MaternalVisit create(MaternalVisitDTO dto, User currentUser) {
+        if (dto == null || dto.getGuardianId() == null) {
+            throw new IllegalArgumentException("Mother / Guardian is required to record a maternal visit");
+        }
         Guardian guardian = guardianRepository.findById(dto.getGuardianId())
-                .orElseThrow(() -> new ResourceNotFoundException("Guardian not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Guardian not found with id: " + dto.getGuardianId()));
         guardianService.validateAccess(guardian.getVillage(), currentUser);
 
         MaternalVisit visit = MaternalVisit.builder()
                 .guardian(guardian)
-                .visitDate(dto.getVisitDate())
-                .visitType(dto.getVisitType())
+                .visitDate(dto.getVisitDate() != null ? dto.getVisitDate() : LocalDate.now())
+                .visitType(dto.getVisitType() != null ? dto.getVisitType() : "Routine Checkup")
                 .notes(dto.getNotes())
                 .nextVisitDate(dto.getNextVisitDate())
                 .recordedBy(currentUser)

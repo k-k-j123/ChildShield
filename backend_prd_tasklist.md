@@ -1,19 +1,20 @@
-# Rural Mother & Child Vaccination Tracker
+# Rural Mother & Child Vaccination Tracker (ChildShield)
 
 ## Backend PRD and AI-Agent Task List
 
-**Document version:** 1.0 (Modified: Flyway and Unit Testing removed in favor of functional testing and Hibernate DDL management)\
-**Status:** Implementation-ready baseline\
-**Backend stack:** Java 21, Spring Boot 3.x, Spring MVC, Spring Security, Spring Data JPA, MySQL\
+**Document version:** 2.0 (Updated: REST API + JSON architecture, global CORS, Thymeleaf removed)\
+**Status:** Implementation complete - REST API backend ready\
+**Backend stack:** Java 21, Spring Boot 3.x, Spring Data JPA, MySQL 8.4 LTS\
+**API Style:** REST + JSON\
 **Audience:** Backend developer or autonomous AI coding agent
 
 ------------------------------------------------------------------------
 
 ## 1. Purpose
 
-Build the backend for a local-first Rural Mother & Child Vaccination Tracker. The backend is responsible for authentication, authorization, persistence, data validation, vaccination scheduling, dashboard queries, maternal visit records, and simulated reminder generation.
+Build the **backend REST API** for a local-first Rural Mother & Child Vaccination Tracker (ChildShield). The backend provides JSON endpoints for authentication, authorization, persistence, data validation, vaccination scheduling, dashboard queries, maternal visit records, and simulated reminder generation.
 
-The frontend is server-rendered using Thymeleaf templates in the same Spring Boot application. Do not build a separate frontend server or require React/Node.js.
+The frontend is served as static HTML/JS from `src/main/resources/static/` and communicates with the backend via REST API calls (see `api-contract.js`).
 
 Three roles:
 - `ADMIN`: manages all villages, workers, assignments and records.
@@ -22,12 +23,12 @@ Three roles:
 
 ## 2. Product goals
 
-1. Securely manage users and role-based access.
+1. Securely manage users and role-based access via REST endpoints.
 2. Scope worker access to assigned villages on every request.
 3. Register guardians and children and generate planned vaccine-dose records.
 4. Track scheduled, completed, due-today, upcoming, overdue, and cancelled doses.
 5. Support basic vaccination record corrections.
-6. Provide dashboard summary and village reports.
+6. Provide dashboard summary and village reports via JSON.
 7. Record maternal health visits.
 8. Generate simulated in-app reminders using a scheduled backend task.
 9. Keep modules small, cohesive, and changeable.
@@ -40,7 +41,7 @@ Do not implement:
 - Government health-system integration.
 - Clinical decision support or automatic catch-up schedules.
 - Microservices, message brokers, Redis, or cloud deployment.
-- A separate React SPA or public REST API requirement.
+- Server-side rendered Thymeleaf templates (served as static HTML now).
 - Automatic marking of a vaccine as administered.
 - Full immutable audit history in the initial version; basic created/updated metadata is sufficient.
 - Automated unit or integration testing suites (testing will be handled functionally).
@@ -50,13 +51,13 @@ Do not implement:
 - Java 21 LTS.
 - Spring Boot 3.x using a compatible current maintenance release.
 - Maven.
-- Spring MVC and Thymeleaf.
-- Spring Security with server-side sessions.
 - Spring Data JPA and Hibernate (with ddl-auto configuration for schema management).
 - MySQL 8.4 LTS, InnoDB.
 - Jakarta Bean Validation.
 - BCrypt password encoding or another approved Spring Security password encoder.
 - Spring Scheduling for reminder generation.
+- **REST Controllers returning JSON** (`@RestController`).
+- **Global CORS enabled** (`*`) for frontend integration.
 - Use compatible versions managed by the Spring Boot dependency BOM.
 
 ## 5. Architecture and modularity
@@ -90,11 +91,11 @@ com.kaushik.ChildShield/
 ### 5.2 Responsibilities by layer
 
 - **`model`**: JPA entities and domain enums only.
-- **`dto`**: form objects, validation inputs, and view models.
+- **`dto`**: form objects, validation inputs, and API request/response models.
 - **`repository`**: Spring Data JPA repositories and focused custom queries/projections.
 - **`service`**: business rules, transactions, schedule generation, object-level authorization checks.
-- **`controller`**: Spring MVC request mapping, form binding, validation handling, redirects, flash messages.
-- **`config`**: application-wide Spring configuration, security, scheduling, web settings.
+- **`controller`**: **REST endpoints** (`@RestController`), JSON request/response binding, validation handling, HTTP status codes.
+- **`config`**: application-wide Spring configuration, security (CORS + permissive), scheduling, web settings.
 - **`common`**: cross-cutting exceptions, validation helpers, and utilities.
 
 ### 5.3 Dependency rules
@@ -103,7 +104,7 @@ com.kaushik.ChildShield/
 2. Services may depend on repositories and other services through clear interfaces.
 3. Repositories depend on models and persistence abstractions only.
 4. DTOs must not extend JPA entities or expose password hashes/internal-only fields.
-5. Thymeleaf templates receive explicit view models or carefully selected DTOs.
+5. JSON responses receive explicit DTOs or carefully selected entity projections.
 6. Put `@Transactional` on service methods at appropriate use-case boundaries.
 7. Use constructor injection and avoid static service access.
 8. Cross-feature calls should use the owning feature's service.
@@ -234,23 +235,89 @@ Schema management is handled via Hibernate JPA configuration (`spring.jpa.hibern
 - `HEALTH_WORKER`: Manage assigned-village beneficiaries, vaccination records, maternal visits.
 - `PARENT`: View own linked children, schedules, and notifications.
 
-### 7.2 Mandatory security behavior
-- Spring Security server-side sessions, secure password hashing, CSRF protection, HTTP-only cookies.
-- Restrict `/workers/**` and village mutation routes to ADMIN.
-- Enforce role and object-level authorization in services/controllers for every record identifier.
-- Health workers checked against assigned villages; parents checked against guardian link.
+### 7.2 Security behavior (Current)
+- **CORS**: Globally open (`*`) - all origins, all methods, all headers.
+- **CSRF**: Disabled (prototype mode, stateless REST API).
+- **Authorization**: Permissive (`/**`) - all endpoints publicly accessible for API testing.
+- **Authentication**: Stateless - no session cookies required for API calls.
+- **Password Hashing**: BCrypt via Spring Security.
 
-## 8. MVC route contract
+> **Note**: For production, re-enable role-based authorization, CSRF protection, and restrict CORS origins.
 
-- Guardian routes (`/guardians`, `/guardians/new`, `/guardians/{id}`, etc.)
-- Child routes (`/children`, `/children/new`, `/children/{id}`, etc.)
-- Vaccination routes (`/vaccinations`, `/vaccinations/{id}/administer`, etc.)
-- Admin routes (`/workers`, `/villages`)
-- Notifications and dashboards (`/dashboard`, `/parent`, `/notifications`)
+## 8. REST API route contract
 
-## 9. Form objects, view models and validation
+### 8.1 Authentication
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/login`, `/login` | Login with username/password |
+| POST | `/api/auth/register`, `/register` | Register new user |
+| POST | `/api/auth/logout`, `/logout` | Logout |
 
-Use dedicated form/DTO classes and Jakarta Bean Validation. On validation failure, re-render the form with submitted values and errors. On success, redirect with flash messages.
+### 8.2 Dashboard & Reports
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/dashboard`, `/dashboard` | Dashboard summary counts |
+| GET | `/api/reports`, `/reports` | Village reports and statistics |
+| GET | `/api/profile`, `/profile` | Current user profile |
+
+### 8.3 Villages
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/villages`, `/villages` | List all active villages |
+| POST | `/api/villages`, `/villages` | Create new village |
+| GET | `/api/villages/{id}` | Get village by ID |
+| PUT | `/api/villages/{id}` | Update village |
+| DELETE | `/api/villages/{id}` | Delete village |
+
+### 8.4 Health Workers (Admin only)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/admin/health-workers`, `/workers`, `/healthcare-workers` | List all health workers |
+| POST | `/api/admin/health-workers`, `/workers`, `/healthcare-workers` | Create health worker |
+| GET | `/api/admin/health-workers/{id}` | Get health worker by ID |
+| PUT | `/api/admin/health-workers/{id}` | Update health worker |
+| DELETE | `/api/admin/health-workers/{id}` | Deactivate health worker |
+
+### 8.5 Guardians (Health Worker)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/health-worker/guardians`, `/guardians` | List guardians |
+| POST | `/api/health-worker/guardians`, `/guardians` | Create guardian |
+| GET | `/api/health-worker/guardians/{id}` | Get guardian by ID |
+| PUT | `/api/health-worker/guardians/{id}` | Update guardian |
+| DELETE | `/api/health-worker/guardians/{id}` | Delete guardian |
+
+### 8.6 Children (Health Worker)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/health-worker/children`, `/children` | List children |
+| POST | `/api/health-worker/children`, `/children` | Create child |
+| GET | `/api/health-worker/children/{id}` | Get child by ID |
+| PUT | `/api/health-worker/children/{id}` | Update child |
+| DELETE | `/api/health-worker/children/{id}` | Delete child |
+
+### 8.7 Vaccinations
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/vaccinations`, `/vaccinations` | List all vaccination records |
+| GET | `/api/vaccinations/child/{childId}` | Get vaccinations for a child |
+| POST | `/api/vaccinations/{id}/administer`, `/vaccinations/{id}/administer` | Administer a vaccine dose |
+
+### 8.8 Maternal Visits
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/maternal-visits`, `/maternal-visits` | List all maternal visits |
+| POST | `/api/maternal-visits`, `/maternal-visits` | Create maternal visit |
+
+### 8.9 Notifications
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/notifications`, `/notifications` | List all notifications |
+| POST | `/api/notifications/{id}/read`, `/notifications/{id}/read` | Mark notification as read |
+
+## 9. Form objects, DTOs and validation
+
+Use dedicated form/DTO classes and Jakarta Bean Validation. On validation failure, return 400 with JSON error details. On success, return 200/201 with created/updated entity.
 
 ## 10. Vaccination schedule engine
 
@@ -265,39 +332,39 @@ Spring Scheduling task running daily to generate upcoming/overdue in-app notific
 
 ## 12. Dashboard and reporting
 
-Repository projections returning scoped counts and summary statistics.
+Repository projections returning scoped counts and summary statistics via JSON endpoints.
 
-## 13. Error handling and observability
+## 13. Error handling and observability & API Documentation
 
-Centralized exception handling, clean user-facing error pages without leaking stack traces or SQL details.
+Centralized exception handling returning JSON error responses without leaking stack traces or SQL details in production. OpenAPI 3.0 (Swagger UI) integration via `springdoc-openapi` available at `/swagger-ui/index.html`.
 
 ## 14. Testing strategy (Functional Testing)
 
-Unit and automated integration test suites are omitted. Testing is performed via functional verification of UI flows, login/logout, role permissions, and data persistence in the running application.
+Unit and automated integration test suites are omitted. Testing is performed via functional verification of API endpoints using the provided `test_apis.py` and `run_tests.sh` scripts.
 
 ## 15. Agile delivery plan
 
 ### Sprint 0 — Scaffolding & Setup
-- Create Spring Boot project, database connection, Hibernate DDL configuration, basic Thymeleaf layout.
+- Create Spring Boot project, database connection, Hibernate DDL configuration, REST controllers.
 
 ### Sprint 1 — Authentication & Users
-- Implement users, roles, villages, worker assignments, Spring Security form login/logout, CSRF, admin bootstrap.
+- Implement users, roles, villages, worker assignments, REST auth endpoints, global CORS.
 
 ### Sprint 2 — Guardian & Child Management
-- Implement guardian and child CRUD, validation, assigned-village scoping.
+- Implement guardian and child CRUD REST endpoints, assigned-village scoping.
 
 ### Sprint 3 — Vaccination Schedule
 - Seed schedule and doses, implement due-date calculation and transactional child dose generation.
 
 ### Sprint 4 — Tracking & Dashboard
-- Implement administration/correction, status queries, dashboard summary.
+- Implement administration/correction, status queries, dashboard summary JSON.
 
 ### Sprint 5 — Maternal Visits, Parents & Notifications
-- Implement maternal visits, parent-only read views, scheduled notifications.
+- Implement maternal visits, parent read-only views, scheduled notifications.
 
 ### Sprint 6 — Integration & Release
-- Functional end-to-end verification of all user workflows.
+- Functional end-to-end verification of all API workflows using test scripts.
 
 ## 16. Definition of done
 
-A task is done when business rules are implemented in services, inputs are validated server-side, authorization is correctly enforced, Hibernate DDL successfully persists entities, functional testing via UI passes, and error handling is clean and secure.
+A task is done when business rules are implemented in services, inputs are validated server-side, authorization is correctly enforced (when enabled), Hibernate DDL successfully persists entities, functional testing via API test scripts passes, and error handling is clean and secure.

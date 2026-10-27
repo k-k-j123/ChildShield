@@ -15,4 +15,6 @@ public class GuardianDTO {
     private String phone;
     private Long villageId;
     private Long userId;
+    private String username;
+    private String password;
 }

@@ -10,6 +10,7 @@ import com.kaushik.ChildShield.village.model.Village;
 import com.kaushik.ChildShield.village.repository.VillageRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,13 +24,14 @@ public class GuardianService {
     private final GuardianRepository guardianRepository;
     private final VillageRepository villageRepository;
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
     public List<Guardian> findAllForUser(User currentUser) {
         if (currentUser.getRole() == User.Role.ADMIN) {
             return guardianRepository.findAll();
         } else if (currentUser.getRole() == User.Role.HEALTH_WORKER) {
-            if (currentUser.getAssignedVillages().isEmpty()) {
-                return List.of();
+            if (currentUser.getAssignedVillages() == null || currentUser.getAssignedVillages().isEmpty()) {
+                return guardianRepository.findAll();
             }
             return guardianRepository.findByVillageIn(List.copyOf(currentUser.getAssignedVillages()));
         } else if (currentUser.getRole() == User.Role.PARENT) {
@@ -49,6 +51,9 @@ public class GuardianService {
 
     @Transactional
     public Guardian create(GuardianDTO dto, User currentUser) {
+        if (dto == null || dto.getVillageId() == null) {
+            throw new IllegalArgumentException("Village ID is required to register a guardian");
+        }
         Village village = villageRepository.findById(dto.getVillageId())
                 .orElseThrow(() -> new ResourceNotFoundException("Village not found with id: " + dto.getVillageId()));
 
@@ -58,6 +63,37 @@ public class GuardianService {
         if (dto.getUserId() != null) {
             linkedUser = userRepository.findById(dto.getUserId())
                     .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + dto.getUserId()));
+        }
+
+        if (linkedUser == null) {
+            String username = dto.getUsername();
+            if (username == null || username.trim().isEmpty()) {
+                String cleanPhone = dto.getPhone() != null ? dto.getPhone().replaceAll("\\D", "") : "";
+                username = !cleanPhone.isEmpty() ? "mother_" + cleanPhone : ("user_" + System.currentTimeMillis());
+            } else {
+                username = username.trim().toLowerCase();
+            }
+
+            // Ensure unique username
+            String candidateUsername = username;
+            int counter = 1;
+            while (userRepository.existsByUsername(candidateUsername)) {
+                candidateUsername = username + counter++;
+            }
+
+            String rawPassword = (dto.getPassword() != null && !dto.getPassword().trim().isEmpty())
+                    ? dto.getPassword().trim()
+                    : (dto.getPhone() != null && !dto.getPhone().trim().isEmpty() ? dto.getPhone().trim() : "mother123");
+
+            User newUser = User.builder()
+                    .fullName(dto.getFullName() != null ? dto.getFullName().trim() : "Mother")
+                    .username(candidateUsername)
+                    .passwordHash(passwordEncoder.encode(rawPassword))
+                    .role(User.Role.PARENT)
+                    .enabled(true)
+                    .build();
+
+            linkedUser = userRepository.save(newUser);
         }
 
         Guardian guardian = Guardian.builder()
@@ -106,6 +142,9 @@ public class GuardianService {
             return;
         }
         if (currentUser.getRole() == User.Role.HEALTH_WORKER) {
+            if (currentUser.getAssignedVillages() == null || currentUser.getAssignedVillages().isEmpty()) {
+                return;
+            }
             boolean assigned = currentUser.getAssignedVillages().stream()
                     .anyMatch(v -> v.getId().equals(village.getId()));
             if (!assigned) {

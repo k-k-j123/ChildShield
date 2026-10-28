@@ -206,26 +206,30 @@ public class WhatsAppService {
         String child = (childName != null && !childName.isBlank()) ? childName.trim() : "your child";
 
         if ("template".equalsIgnoreCase(messageType)) {
-            // Build parameters matching template format (such as jaspers_market_order_confirmation_v1)
-            // Parameter 1: Parent & Child
-            String param1 = greetingName + " (Child: " + child + ")";
-
-            // Parameter 2: Vaccine doses list
             StringBuilder sbDoses = new StringBuilder();
             for (int i = 0; i < overdueDoses.size(); i++) {
                 if (i > 0) sbDoses.append(", ");
                 sbDoses.append(overdueDoses.get(i).getOrDefault("name", "Vaccine"));
             }
-            String param2 = "Overdue Vaccines: " + sbDoses;
-            if (param2.length() > 60) {
-                param2 = param2.substring(0, 57) + "...";
-            }
-
-            // Parameter 3: Due date / action
             String earliestDue = overdueDoses.get(0).getOrDefault("dueDate", "Immediate");
-            String param3 = "Health Center Visit (Due: " + earliestDue + ")";
 
-            return sendTemplateMessage(guardianPhone, templateName, templateLanguage, List.of(param1, param2, param3));
+            if ("jaspers_market_order_confirmation_v1".equalsIgnoreCase(templateName)) {
+                // Meta's sample e-commerce grocery template
+                String param1 = greetingName + " (Child: " + child + ")";
+                String param2 = "Vaccines: " + sbDoses;
+                if (param2.length() > 60) param2 = param2.substring(0, 57) + "...";
+                String param3 = "Health Center (Due: " + earliestDue + ")";
+                return sendTemplateMessage(guardianPhone, templateName, templateLanguage, List.of(param1, param2, param3));
+            } else {
+                // Dedicated ChildShield template (e.g. vaccination_reminder)
+                // {{1}} = Guardian Name
+                // {{2}} = Child Name
+                // {{3}} = Overdue Vaccines and due date
+                String param1 = greetingName;
+                String param2 = child;
+                String param3 = sbDoses + " (Due: " + earliestDue + ")";
+                return sendTemplateMessage(guardianPhone, templateName, templateLanguage, List.of(param1, param2, param3));
+            }
         } else {
             // Text mode (used when inside active 24-hour customer conversation window)
             StringBuilder sb = new StringBuilder();
